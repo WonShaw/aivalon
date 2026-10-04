@@ -11,6 +11,7 @@ import type {
   Viewer,
 } from '../shared/types.ts';
 import { STANDARD_SETUP, validateSetup } from '../shared/setup.ts';
+import { deleteAISession } from './ai/player.ts';
 import { Game } from './game/engine.ts';
 import { GameStore, type GameRecord } from './game/store.ts';
 import { messageVisible } from './game/visibility.ts';
@@ -151,6 +152,21 @@ async function act(req: IncomingMessage, res: ServerResponse, id: string): Promi
   json(res, 200, { ok: true });
 }
 
+// 删除一局：对局记录和这局所有 AI 的会话记录。进行中的对局不能删
+async function deleteGame(res: ServerResponse, id: string): Promise<void> {
+  if (games.get(id)?.record.status === 'running') return json(res, 409, { error: '进行中的对局不能删除，请先结束对局' });
+  const record = games.get(id)?.record ?? store.loadRecord(id);
+  if (!record) return json(res, 404, { error: '对局不存在' });
+
+  let sessions = 0;
+  for (const sessionId of Object.values(record.sessions ?? {})) {
+    if (sessionId && (await deleteAISession(sessionId))) sessions++;
+  }
+  store.deleteGame(id);
+  games.delete(id);
+  json(res, 200, { ok: true, sessions });
+}
+
 async function stop(req: IncomingMessage, res: ServerResponse, id: string): Promise<void> {
   const game = games.get(id);
   if (!game || game.record.status !== 'running') return json(res, 404, { error: '对局未在进行' });
@@ -193,6 +209,9 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
     return json(res, 200, store.listRecords().map((r) => games.get(r.id)?.summary() ?? recordSummary(r)));
   }
   if (path === '/api/games' && req.method === 'POST') return createGame(req, res);
+
+  const del = /^\/api\/games\/([\w-]+)$/.exec(path);
+  if (del && req.method === 'DELETE') return deleteGame(res, del[1]);
 
   const m = /^\/api\/games\/([\w-]+)\/(stream|act|stop)$/.exec(path);
   if (m) {

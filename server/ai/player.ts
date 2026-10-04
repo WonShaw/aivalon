@@ -1,7 +1,7 @@
 import { mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { query, type Options, type SDKResultMessage } from '@anthropic-ai/claude-agent-sdk';
+import { deleteSession, query, type Options, type SDKResultMessage } from '@anthropic-ai/claude-agent-sdk';
 import type { ActionType } from '../../shared/types.ts';
 import { SYSTEM_PROMPT } from './prompts.ts';
 import { OUTPUT_SCHEMA, type AIOutput } from './schema.ts';
@@ -14,6 +14,18 @@ const THINKING_DISPLAY = process.env.AIVALON_THINKING_DISPLAY === 'omitted' ? 'o
 // AI 进程的工作目录：一个空的临时目录，与项目和游戏记录完全分开
 const SANDBOX_DIR = join(tmpdir(), 'aivalon-sandbox');
 mkdirSync(SANDBOX_DIR, { recursive: true });
+
+// 删除某个 AI 的会话记录（Agent SDK 存在 ~/.claude/projects 下）。返回是否删掉了
+export async function deleteAISession(sessionId: string): Promise<boolean> {
+  try {
+    await deleteSession(sessionId, { dir: SANDBOX_DIR });
+    return true;
+  } catch (err) {
+    // 会话文件不存在（比如已经手动删过）时 SDK 会抛错，不影响删除对局
+    console.warn(`[aivalon] 删除会话 ${sessionId} 失败：`, err instanceof Error ? err.message : err);
+    return false;
+  }
+}
 
 // 从宿主环境（比如 Claude 桌面 App 里的终端）继承来的、会把额外上下文注入到 AI 会话里的变量
 const LEAKY_ENV = [

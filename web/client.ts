@@ -16,6 +16,7 @@ export const api = {
     request<CreateGameResponse>('/api/games', { method: 'POST', body: JSON.stringify(req) }),
   act: (id: string, token: string, submission: ActionSubmission) =>
     request<{ ok: true }>(`/api/games/${id}/act`, { method: 'POST', body: JSON.stringify({ token, submission }) }),
+  deleteGame: (id: string) => request<{ ok: true; sessions: number }>(`/api/games/${id}`, { method: 'DELETE' }),
   stop: (id: string, token?: string) =>
     request<{ ok: true }>(`/api/games/${id}/stop`, { method: 'POST', body: JSON.stringify({ token }) }),
 };
@@ -71,4 +72,21 @@ export async function createGame(req: CreateGameRequest): Promise<CreateGameResp
     // 存不了只影响"再来一局"沿用身份选择
   }
   return res;
+}
+
+// 删除对局后，清掉本机为它保存的专属链接、开局设置和身份标记
+export function forgetGame(gameId: string): void {
+  try {
+    for (const key of [TOKENS_KEY, REQUEST_KEY]) {
+      const all = JSON.parse(localStorage.getItem(key) ?? '{}');
+      delete all[gameId];
+      localStorage.setItem(key, JSON.stringify(all));
+    }
+    const guessPrefix = `aivalon.guesses.${gameId}.`;
+    for (const key of Object.keys(localStorage)) {
+      if (key.startsWith(guessPrefix)) localStorage.removeItem(key);
+    }
+  } catch {
+    // 忽略
+  }
 }

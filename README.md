@@ -65,6 +65,7 @@ npm run dev
 
 **会话与缓存**
 - 每个 AI 一个 Agent SDK 会话，每次行动都 resume 同一个 session id。session id 记录在 `data/games/<id>/game.json`。
+- 在大厅删除一局时，会同时删除 `data/games/<id>/` 和这局所有 AI 的会话记录（Agent SDK 存在 `~/.claude/projects/` 下）。进行中的对局不能删除。
 - 系统提示词对所有 AI、所有对局都一样，写的是包含所有可能身份的通用规则。本局配置、座位、身份和性格都放在第一条 user 消息里。
 - 所有动作共用一个结构化输出 schema。Agent SDK 用一个工具实现结构化输出，每次换 schema 会让整段缓存失效。
 

@@ -1,5 +1,5 @@
-import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
 import type { GameEvent, GameStatus, PlayerInfo, Role, Team } from '../../shared/types.ts';
 
 // 游戏记录（含所有身份与私密信息）只由服务端读写，AI 进程无法访问
@@ -50,6 +50,13 @@ export class GameStore {
       .split('\n')
       .filter(Boolean)
       .map((line) => JSON.parse(line) as GameEvent);
+  }
+
+  deleteGame(id: string): void {
+    const dir = resolve(this.gameDir(id));
+    // 只允许删 games 目录下的直接子目录
+    if (dirname(dir) !== resolve(this.dir)) throw new Error(`invalid game id: ${id}`);
+    rmSync(dir, { recursive: true, force: true });
   }
 
   listRecords(): GameRecord[] {

@@ -16,7 +16,7 @@ import {
   type Role,
   type RolePreference,
 } from '../shared/types.ts';
-import { api, createGame, gameUrl, loadSeats, type SavedSeat } from './client.ts';
+import { api, createGame, forgetGame, gameUrl, loadSeats, type SavedSeat } from './client.ts';
 
 interface Props {
   onOpen: (gameId: string, token?: string) => void;
@@ -128,6 +128,22 @@ export function Lobby({ onOpen, onCreated, created }: Props) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(false);
+    }
+  };
+
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const remove = async (g: GameSummary) => {
+    const when = new Date(g.createdAt).toLocaleString();
+    if (!confirm(`删除 ${when} 的这局？\n对局记录和 AI 的会话记录都会被删除，无法恢复。`)) return;
+    setDeleting(g.id);
+    try {
+      await api.deleteGame(g.id);
+      forgetGame(g.id);
+      setGames((list) => list.filter((x) => x.id !== g.id));
+    } catch (e) {
+      alert(e instanceof Error ? e.message : String(e));
+    } finally {
+      setDeleting(null);
     }
   };
 
@@ -298,6 +314,16 @@ export function Lobby({ onOpen, onCreated, created }: Props) {
                     ) : (
                       <span className="muted small-text">需要玩家专属链接</span>
                     ))}
+                  {g.status !== 'running' && (
+                    <button
+                      className="ghost danger"
+                      disabled={deleting === g.id}
+                      onClick={() => remove(g)}
+                      title="删除这局的对局记录和 AI 会话记录"
+                    >
+                      {deleting === g.id ? '删除中…' : '删除'}
+                    </button>
+                  )}
                 </div>
               </div>
             );
