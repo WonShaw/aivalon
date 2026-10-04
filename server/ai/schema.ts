@@ -10,6 +10,7 @@ export const ACTION_TYPES: ActionType[] = [
   'mission',
   'evil_discuss',
   'assassinate',
+  'reflect',
 ];
 
 export const OUTPUT_SCHEMA = {

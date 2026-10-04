@@ -76,14 +76,35 @@ export function GameView({ gameId, token, onBack, onCreated }: Props) {
       setRestarting(false);
     }
   };
-  const playAgainButton = summary && summary.status !== 'running' && (
+  const postgameRunning = summary?.postgame === 'running';
+  const playAgainButton = summary && summary.status !== 'running' && !postgameRunning && (
     <button className="primary" disabled={restarting} onClick={playAgain}>
       {restarting ? '创建中…' : humanNames.length > 1 ? '再来一局（生成新链接）' : '再来一局'}
     </button>
   );
 
+  // 赛后交流：正常结束的对局可以手动开启一次；全 AI 对局观众可开，有人类的对局由玩家开
+  const [startingPostgame, setStartingPostgame] = useState(false);
+  const canStartPostgame =
+    summary?.status === 'finished' && summary.postgame === 'none' && (isSpectator || !!token);
+  const startPostgame = async () => {
+    setStartingPostgame(true);
+    try {
+      await api.startPostgame(gameId, token ?? undefined);
+    } catch (e) {
+      alert(e instanceof Error ? e.message : String(e));
+    } finally {
+      setStartingPostgame(false);
+    }
+  };
+  const postgameButton = canStartPostgame && (
+    <button disabled={startingPostgame} onClick={startPostgame} title="每位玩家再发言一次，聊聊这局的感想">
+      {startingPostgame ? '开启中…' : '赛后聊聊'}
+    </button>
+  );
+
   const stop = async () => {
-    if (!confirm('确定要结束这局游戏吗？')) return;
+    if (!confirm(postgameRunning ? '确定要结束赛后交流吗？' : '确定要结束这局游戏吗？')) return;
     try {
       await api.stop(gameId, token ?? undefined);
     } catch (e) {
@@ -120,6 +141,12 @@ export function GameView({ gameId, token, onBack, onCreated }: Props) {
             结束对局
           </button>
         )}
+        {postgameRunning && (
+          <button className="ghost danger" onClick={stop}>
+            结束赛后交流
+          </button>
+        )}
+        {postgameButton}
         {playAgainButton}
       </header>
 
@@ -178,7 +205,12 @@ export function GameView({ gameId, token, onBack, onCreated }: Props) {
               acting={state.acting}
               live={state.live}
             >
-              {playAgainButton && <div className="play-again">{playAgainButton}</div>}
+              {(postgameButton || playAgainButton) && (
+                <div className="play-again">
+                  {postgameButton}
+                  {playAgainButton}
+                </div>
+              )}
             </Timeline>
             {state.request && token && (
               <ActionPanel gameId={gameId} token={token} request={state.request} players={players} />

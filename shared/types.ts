@@ -54,7 +54,7 @@ export type Visibility =
   | { kind: 'players'; seats: number[] }
   | { kind: 'spectator' };
 
-export type SpeechKind = 'propose' | 'discuss' | 'final' | 'assassin_discuss' | 'assassinate';
+export type SpeechKind = 'propose' | 'discuss' | 'final' | 'assassin_discuss' | 'assassinate' | 'reflect';
 
 export type GameEventBody =
   | { type: 'game_start'; players: PlayerInfo[]; firstLeader: number; setup: Role[] }
@@ -87,6 +87,9 @@ export type GameEventBody =
       reason: string;
       roles: Record<number, Role>;
     }
+  // 赛后交流：游戏结束后由玩家手动开启，每人发言一次
+  | { type: 'postgame_start' }
+  | { type: 'postgame_end' }
   // 以下仅观众可见
   | { type: 'thought'; seat: number; action: ActionType; summary: string }
   | { type: 'ai_error'; seat: number; action: ActionType; message: string }
@@ -105,9 +108,13 @@ export type ActionType =
   | 'vote'
   | 'mission'
   | 'evil_discuss'
-  | 'assassinate';
+  | 'assassinate'
+  | 'reflect';
 
 export type GameStatus = 'running' | 'finished' | 'aborted' | 'error';
+
+// 赛后交流的状态：还没开始 / 进行中 / 已结束（每局只能开一次）
+export type PostgameStatus = 'none' | 'running' | 'done';
 
 export interface GameSummary {
   id: string;
@@ -117,6 +124,7 @@ export interface GameSummary {
   players: PlayerInfo[];
   hasHumans: boolean;
   setup: Role[]; // 本局的身份配置（不含谁是谁）
+  postgame: PostgameStatus;
 }
 
 // 谁在看：全 AI 对局的上帝视角观众，或者某个座位上的人类玩家

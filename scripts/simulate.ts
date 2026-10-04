@@ -22,6 +22,7 @@ function answer(r: HumanRequest, players: number): ActionSubmission {
     case 'mission': return { action: r.action, mission_card: r.canFail && Math.random() < 0.5 ? 'fail' : 'success' };
     case 'evil_discuss': return { action: r.action, speech: '讨论' };
     case 'assassinate': return { action: r.action, speech: '刺杀', target: pick(r.targets!) };
+    case 'reflect': return { action: r.action, speech: r.seat % 3 === 0 ? '' : '这局很好玩' }; // 每 3 个座位有一个跳过
   }
 }
 
@@ -59,13 +60,32 @@ async function simulate(players: number, presetName: string, prefs: RolePreferen
   });
 
   await game.run();
+
+  // 赛后交流：只能在正常结束后开一次；跳过的人没有发言事件
+  if (game.record.status === 'finished') {
+    if (!game.canStartPostgame()) throw new Error('postgame should be available');
+    await game.runPostgame();
+    if (game.canStartPostgame()) throw new Error('postgame should not start twice');
+    const start = game.events.findIndex((e) => e.type === 'postgame_start');
+    const reflects = game.events.filter((e) => e.type === 'speech' && e.kind === 'reflect').length;
+    const expected = Array.from({ length: players }, (_, i) => i + 1).filter((s) => s % 3 !== 0).length;
+    if (start < 0 || game.events.at(-1)?.type !== 'postgame_end' || reflects !== expected) {
+      throw new Error(`postgame wrong: start=${start} reflects=${reflects}/${expected}`);
+    }
+    if (game.summary().postgame !== 'done') throw new Error('postgame status not done');
+    // 从磁盘恢复后，事件和状态都要一致
+    const loaded = Game.load(store, game.id)!;
+    if (loaded.events.length !== game.events.length || loaded.summary().postgame !== 'done') throw new Error('load mismatch');
+  }
+
   for (let seat = 1; seat <= players; seat++) {
     const roleEvents = seen[seat].filter((t) => t === 'role_assigned').length;
     const cards = seen[seat].filter((t) => t === 'mission_cards').length;
     if (roleEvents !== 1 || cards !== 0) throw new Error(`seat ${seat} visibility wrong: roles=${roleEvents} cards=${cards}`);
   }
-  const over = game.events.at(-1);
-  console.log(`[${players}人·${presetName}] ${prefs.join('/')} → ${game.record.status}, ${over?.type === 'game_over' ? over.reason : '?'}`);
+  const over2 = game.events.findLast((e) => e.type === 'game_over');
+  const reflects = game.events.filter((e) => e.type === 'speech' && e.kind === 'reflect').length;
+  console.log(`[${players}人·${presetName}] → ${game.record.status}, ${over2?.type === 'game_over' ? over2.reason : '?'}，赛后发言 ${reflects} 条`);
 }
 
 // 所有座位都由脚本扮演"人类"，偏好覆盖：指定身份、指定阵营、随机

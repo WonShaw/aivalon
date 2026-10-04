@@ -21,9 +21,10 @@ const SPEECH_KIND: Record<SpeechKind, string> = {
   final: '最终提名',
   assassin_discuss: '刺杀讨论',
   assassinate: '刺杀宣言',
+  reflect: '赛后感想',
 };
 
-const SPEAKING_ACTIONS: ActionType[] = ['propose', 'speak', 'final_team', 'evil_discuss', 'assassinate'];
+const SPEAKING_ACTIONS: ActionType[] = ['propose', 'speak', 'final_team', 'evil_discuss', 'assassinate', 'reflect'];
 
 export function Timeline(props: Props) {
   const { events, players, viewer, showRoles, showThoughts, acting, live } = props;
@@ -212,6 +213,10 @@ export function Timeline(props: Props) {
             </div>
           </div>
         );
+      case 'postgame_start':
+        return <div className="round-head">赛后交流 · 每人发言一次</div>;
+      case 'postgame_end':
+        return <div className="divider">赛后交流结束</div>;
       case 'ai_error':
         if (!isSpectator) return null;
         return (

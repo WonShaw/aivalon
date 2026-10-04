@@ -18,6 +18,7 @@ const TITLES: Record<HumanRequest['action'], string> = {
   mission: '你在任务队伍中：请出任务牌',
   evil_discuss: '刺杀阶段：和同伴讨论谁是梅林',
   assassinate: '你是刺客：选择刺杀目标',
+  reflect: '赛后交流：聊聊你对这局的感想',
 };
 
 export function ActionPanel({ gameId, token, request, players }: Props) {
@@ -35,12 +36,14 @@ export function ActionPanel({ gameId, token, request, players }: Props) {
   }, [request.id]);
 
   const needsSpeech = ['propose', 'speak', 'evil_discuss', 'assassinate'].includes(request.action);
-  const allowsSpeech = needsSpeech || request.action === 'final_team';
+  const isReflect = request.action === 'reflect';
+  const allowsSpeech = needsSpeech || request.action === 'final_team' || isReflect;
   const picksTeam = request.action === 'propose' || request.action === 'final_team';
 
   const submit = async (extra: Partial<ActionSubmission> = {}) => {
     const submission: ActionSubmission = { action: request.action, ...extra };
-    if (allowsSpeech && speech.trim()) submission.speech = speech.trim();
+    // "跳过"会显式传入空发言，不能被输入框里的内容覆盖
+    if (allowsSpeech && extra.speech === undefined && speech.trim()) submission.speech = speech.trim();
     if (picksTeam) submission.team = team;
     if (request.action === 'assassinate' && target !== null) submission.target = target;
     setBusy(true);
@@ -59,7 +62,7 @@ export function ActionPanel({ gameId, token, request, players }: Props) {
 
   const canSubmit =
     !busy &&
-    (!needsSpeech || speech.trim().length > 0) &&
+    (!(needsSpeech || isReflect) || speech.trim().length > 0) &&
     (!picksTeam || team.length === request.teamSize) &&
     (request.action !== 'assassinate' || target !== null);
 
@@ -148,6 +151,11 @@ export function ActionPanel({ gameId, token, request, players }: Props) {
       {request.action !== 'vote' && request.action !== 'mission' && (
         <div className="action-row right">
           <span className="muted hint">⌘/Ctrl + Enter 提交</span>
+          {isReflect && (
+            <button disabled={busy} onClick={() => submit({ speech: '' })}>
+              跳过
+            </button>
+          )}
           <button className="primary" disabled={!canSubmit} onClick={() => submit()}>
             提交
           </button>

@@ -20,6 +20,7 @@ export const ACTION_LABEL: Record<ActionType, string> = {
   mission: '出任务牌',
   evil_discuss: '刺杀讨论',
   assassinate: '刺杀',
+  reflect: '赛后感想',
 };
 
 // 每个座位一个固定色相，用于头像

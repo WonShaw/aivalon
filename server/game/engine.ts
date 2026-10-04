@@ -1,5 +1,6 @@
 import { EventEmitter } from 'node:events';
 import { randomBytes, randomUUID } from 'node:crypto';
+import { ROLE_NAME } from '../../shared/types.ts';
 import type {
   ActionSubmission,
   ActionType,
@@ -9,6 +10,7 @@ import type {
   GameSummary,
   HumanRequest,
   PlayerInfo,
+  PostgameStatus,
   Role,
   StreamMessage,
   Team,
@@ -23,7 +25,7 @@ import {
   sanitizeSpeech,
   type ActionContext,
 } from '../ai/prompts.ts';
-import { buildSetup, setupOptionsOf, teamSizes } from '../../shared/setup.ts';
+import { STANDARD_SETUP, buildSetup, setupOptionsOf, teamSizes } from '../../shared/setup.ts';
 import {
   MAX_ATTEMPTS,
   assignRoles,
@@ -65,7 +67,7 @@ export class Game {
   private readonly cursors: Record<number, number> = {};
   private readonly acting = new Map<number, ActionType>();
   private readonly pendingHumans = new Map<number, PendingHuman>();
-  private readonly abortController = new AbortController();
+  private abortController = new AbortController(); // 当前阶段（对局 / 赛后交流）的中止信号
 
   // 调用前需要先用 validateSetup 校验配置；人类的身份偏好无法满足时抛出错误
   static create(store: GameStore, req: CreateGameRequest): Game {
@@ -112,6 +114,20 @@ export class Game {
     return new Game(record, store);
   }
 
+  // 从磁盘恢复一局（例如服务重启后回看、开启赛后交流）。早期记录没有保存 AI 看到哪里，就当作都看过了
+  static load(store: GameStore, id: string): Game | null {
+    const record = store.loadRecord(id);
+    if (!record) return null;
+    record.humanTokens ??= {};
+    record.setup ??= STANDARD_SETUP;
+    const game = new Game(record, store);
+    game.events.push(...store.loadEvents(id));
+    for (const seat of Object.keys(game.ais).map(Number)) {
+      game.cursors[seat] = record.cursors?.[seat] ?? game.events.length;
+    }
+    return game;
+  }
+
   private constructor(
     readonly record: GameRecord,
     private readonly store: GameStore,
@@ -156,7 +172,8 @@ export class Game {
 
   summary(): GameSummary {
     const { id, createdAt, status, winner, players, setup } = this.record;
-    return { id, createdAt, status, winner, players, hasHumans: this.hasHumans, setup };
+    const postgame = this.record.postgame ?? 'none';
+    return { id, createdAt, status, winner, players, hasHumans: this.hasHumans, setup, postgame };
   }
 
   actingNow(): { seat: number; action: ActionType }[] {
@@ -228,6 +245,8 @@ export class Game {
       .map((e) => renderEvent(e, ctx))
       .filter((t): t is string => t !== null);
     this.cursors[seat] = this.events.length;
+    this.record.cursors = { ...this.cursors };
+    this.store.saveRecord(this.record);
     return lines.join('\n\n');
   }
 
@@ -535,6 +554,58 @@ export class Game {
   private finish(winner: Team, reason: string): Team {
     this.emit({ type: 'game_over', winner, reason, roles: this.record.roles }, PUBLIC);
     return winner;
+  }
+
+  // ---------- 赛后交流 ----------
+
+  // 赛后交流只能在对局正常结束后开一次
+  canStartPostgame(): boolean {
+    return this.record.status === 'finished' && (this.record.postgame ?? 'none') === 'none';
+  }
+
+  private setPostgame(postgame: PostgameStatus): void {
+    this.record.postgame = postgame;
+    this.store.saveRecord(this.record);
+    this.broadcast({ kind: 'game', summary: this.summary() });
+  }
+
+  // 本局结果和全部身份，给 AI 做赛后交流的背景
+  private recap(): string {
+    const over = this.events.findLast((e) => e.type === 'game_over');
+    if (over?.type !== 'game_over') return '';
+    const name = (seat: number) => this.record.players.find((p) => p.seat === seat)?.name ?? `${seat}号`;
+    const roles = this.seatsFrom(1)
+      .map((s) => `${s}号「${name(s)}」${ROLE_NAME[over.roles[s]]}`)
+      .join('，');
+    return `${over.winner === 'good' ? '正义方' : '邪恶方'}获胜（${over.reason}）。全部身份：${roles}。`;
+  }
+
+  // 每人按座位顺序发言一次；人类可以跳过（提交空发言）
+  async runPostgame(): Promise<void> {
+    this.abortController = new AbortController();
+    this.setPostgame('running');
+    this.emit({ type: 'postgame_start' }, PUBLIC);
+    const ctx: ActionContext = { recap: this.recap() };
+    try {
+      for (const seat of this.seatsFrom(1)) {
+        const human = this.isHuman(seat);
+        const out = await this.ask(
+          seat,
+          'reflect',
+          ctx,
+          human ? () => null : Game.needSpeech,
+          () => ({ action: 'reflect', speech: '（没有发言）' }),
+        );
+        if (out.speech?.trim()) this.emit({ type: 'speech', seat, kind: 'reflect', text: out.speech }, PUBLIC);
+      }
+    } catch (err) {
+      if (!(err instanceof GameAborted) && !this.abortController.signal.aborted) {
+        console.error(`[game ${this.id}] postgame`, err);
+      }
+    } finally {
+      this.emit({ type: 'postgame_end' }, PUBLIC);
+      this.setPostgame('done');
+    }
   }
 }
 

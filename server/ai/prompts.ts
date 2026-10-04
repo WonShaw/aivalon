@@ -24,6 +24,7 @@ ${RULES_TEXT}
   - mission：mission_card（success / fail）
   - evil_discuss：speech
   - assassinate：speech + target（要刺杀的座位号）
+  - reflect：speech（游戏结束后的赛后感想）
 - speech 会原样公开给所有玩家。请用第一人称、口语化的方式说话，就像坐在桌边一样，一般不超过 200 字。
 - speech 以外的字段其他玩家都看不到；投票在所有人投完后统一公开，任务牌永远不公开。
 
@@ -48,6 +49,7 @@ const SPEECH_KIND_LABEL: Record<string, string> = {
   final: '最终提名发言',
   assassin_discuss: '刺杀讨论',
   assassinate: '刺杀宣言',
+  reflect: '赛后感想',
 };
 
 function seats(list: number[]): string {
@@ -107,6 +109,10 @@ export function renderEvent(e: GameEvent, ctx: RenderContext): string | null {
     }
     case 'mission_result':
       return `【裁判】第 ${e.mission} 个任务结果：队伍 ${seats(e.team)}，失败票 ${e.fails} 张 → 任务${e.success ? '成功' : '失败'}。`;
+    case 'assassination': {
+      const result = e.hit ? '刺中了梅林' : '没有刺中梅林';
+      return `【裁判】刺客 ${who(e.assassin)} 刺杀了 ${who(e.target)}（${ROLE_NAME[e.targetRole]}）→ ${result}。`;
+    }
     case 'assassination_start': {
       const list = e.evil.map((x) => `${who(x.seat)} = ${ROLE_NAME[x.role]}`).join('，');
       return `【裁判】正义方已完成 3 个任务！进入刺杀阶段。邪恶方公开身份：${list}。邪恶方可以公开讨论，正义方不能发言，最后由刺客决定刺杀目标。`;
@@ -122,6 +128,7 @@ export interface ActionContext {
   leader?: number;
   teamSize?: number;
   team?: number[];
+  recap?: string; // 赛后交流：本局结果和全部身份
 }
 
 export function actionInstruction(action: ActionType, c: ActionContext): string {
@@ -142,6 +149,12 @@ export function actionInstruction(action: ActionType, c: ActionContext): string 
       return `【裁判】轮到你行动（action=evil_discuss）：请和同伴讨论谁最可能是梅林。刺客会在讨论结束后做出决定。`;
     case 'assassinate':
       return `【裁判】你是刺客，请做出最终决定（action=assassinate）：在 speech 中简短宣布，target 填你要刺杀的座位号。`;
+    case 'reflect':
+      return [
+        `【裁判】游戏已经结束。${c.recap ?? ''}`,
+        `现在是赛后交流时间，所有身份都已公开，大家按座位顺序各发言一次（action=reflect）。`,
+        `请在 speech 里像朋友聚会复盘一样，口语化地聊聊你对这局的感想：比如印象最深的时刻、你自己这局玩得怎么样、对其他玩家的看法。`,
+      ].join('\n');
   }
 }
 
