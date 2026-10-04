@@ -1,4 +1,4 @@
-import type { ActionSubmission, CreateGameResponse, GameSummary } from '../shared/types.ts';
+import type { ActionSubmission, CreateGameRequest, CreateGameResponse, GameSummary } from '../shared/types.ts';
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, {
@@ -12,8 +12,8 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
 
 export const api = {
   listGames: () => request<GameSummary[]>('/api/games'),
-  createGame: (humans: string[]) =>
-    request<CreateGameResponse>('/api/games', { method: 'POST', body: JSON.stringify({ humans }) }),
+  createGame: (req: CreateGameRequest) =>
+    request<CreateGameResponse>('/api/games', { method: 'POST', body: JSON.stringify(req) }),
   act: (id: string, token: string, submission: ActionSubmission) =>
     request<{ ok: true }>(`/api/games/${id}/act`, { method: 'POST', body: JSON.stringify({ token, submission }) }),
   stop: (id: string, token?: string) =>
@@ -49,4 +49,26 @@ export function gameUrl(id: string, token?: string): string {
   const params = new URLSearchParams({ game: id });
   if (token) params.set('token', token);
   return `${location.origin}${location.pathname}?${params}`;
+}
+
+// 记住开局时的完整设置（包括人类选的身份），"再来一局"时沿用。只存在创建者自己的浏览器里
+const REQUEST_KEY = 'aivalon.requests';
+
+export function loadRequest(gameId: string): CreateGameRequest | null {
+  try {
+    return JSON.parse(localStorage.getItem(REQUEST_KEY) ?? '{}')[gameId] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export async function createGame(req: CreateGameRequest): Promise<CreateGameResponse> {
+  const res = await api.createGame(req);
+  try {
+    const all = JSON.parse(localStorage.getItem(REQUEST_KEY) ?? '{}');
+    localStorage.setItem(REQUEST_KEY, JSON.stringify({ ...all, [res.summary.id]: req }));
+  } catch {
+    // 存不了只影响"再来一局"沿用身份选择
+  }
+  return res;
 }

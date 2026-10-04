@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import type { CreateGameResponse, GameStatus } from '../shared/types.ts';
-import { api } from './client.ts';
+import { api, createGame, loadRequest } from './client.ts';
 import { ActionPanel } from './components/ActionPanel.tsx';
 import { RoleGuide } from './components/RoleGuide.tsx';
 import { RoundTable } from './components/RoundTable.tsx';
@@ -60,12 +60,16 @@ export function GameView({ gameId, token, onBack, onCreated }: Props) {
 
   const [restarting, setRestarting] = useState(false);
   const humanNames = players.filter((p) => p.kind === 'human').map((p) => p.name);
+  const setup = summary?.setup ?? [];
 
-  // 用相同的配置再开一局：同样的人类玩家（座位和身份重新随机），其余是 AI
+  // 用相同的配置再开一局：同样的身份配置和人类玩家（座位重新随机）。
+  // 人类选的身份只有创建者的浏览器记得，其他人点"再来一局"时身份改为随机
   const playAgain = async () => {
     setRestarting(true);
     try {
-      onCreated(await api.createGame(humanNames));
+      const saved = loadRequest(gameId);
+      const req = saved ?? { setup, humans: humanNames.map((name) => ({ name, role: 'random' as const })) };
+      onCreated(await createGame(req));
     } catch (e) {
       alert(e instanceof Error ? e.message : String(e));
     } finally {
@@ -125,6 +129,7 @@ export function GameView({ gameId, token, onBack, onCreated }: Props) {
         <div className="game-body">
           <aside className="side">
             <RoundTable
+              setup={setup}
               players={players}
               board={board}
               acting={state.acting}
@@ -141,7 +146,7 @@ export function GameView({ gameId, token, onBack, onCreated }: Props) {
               </div>
             )}
 
-            <RoleGuide roles={roles} nightMarks={board.myRole?.marks ?? []} guesses={guesses} canMark={canMark} />
+            <RoleGuide setup={setup} roles={roles} nightMarks={board.myRole?.marks ?? []} guesses={guesses} canMark={canMark} />
 
             {isSpectator && board.usage.calls > 0 && (
               <div className="stats">

@@ -1,5 +1,6 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 import type { ActionType, GameEvent, PlayerInfo, Role, SpeechKind, Viewer } from '../../shared/types.ts';
+import { describeSetup } from '../../shared/setup.ts';
 import { ACTION_LABEL, playerName, roleLabel, roleTone, seatHue } from '../format.ts';
 
 interface Props {
@@ -71,6 +72,7 @@ export function Timeline(props: Props) {
         return (
           <div className="divider">
             游戏开始 · 首位队长 {e.firstLeader}号 {name(e.firstLeader)}
+            {e.setup && <div className="muted small-text">{describeSetup(e.setup)}</div>}
           </div>
         );
       case 'role_assigned':

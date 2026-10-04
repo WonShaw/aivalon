@@ -8,7 +8,7 @@
     "build": "vite build",
     "start": "tsx server/index.ts",
     "typecheck": "tsc --noEmit",
-    "simulate": "tsx scripts/simulate.ts",
+    "simulate": "AIVALON_MISSION_MIN_MS=0 tsx scripts/simulate.ts",
     "check-isolation": "tsx scripts/check-isolation.ts"
   },
   "type": "module",

@@ -3,11 +3,13 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import type {
   ActionSubmission,
   ActionType,
+  CreateGameRequest,
   GameEvent,
   GameEventBody,
   GameSummary,
   HumanRequest,
   PlayerInfo,
+  Role,
   StreamMessage,
   Team,
   Visibility,
@@ -21,11 +23,10 @@ import {
   sanitizeSpeech,
   type ActionContext,
 } from '../ai/prompts.ts';
+import { buildSetup, setupOptionsOf, teamSizes } from '../../shared/setup.ts';
 import {
   MAX_ATTEMPTS,
-  PLAYER_COUNT,
-  ROLES,
-  TEAM_SIZES,
+  assignRoles,
   failsRequired,
   isEvil,
   knowledgeFor,
@@ -43,8 +44,8 @@ const MAX_SPEECH_CHARS = 800;
 const MAX_INVALID_RETRIES = 2; // AI 提交不合法时最多再问几次
 const MAX_CALL_RETRIES = 3; // 调用出错（网络、限流等）时最多重试几次
 // 有人类玩家时，任务结算至少等这么久，避免从结果出来的快慢推断队伍里有没有邪恶方
-const MISSION_MIN_MS = 8000;
-const MISSION_JITTER_MS = 4000;
+const MISSION_MIN_MS = Number(process.env.AIVALON_MISSION_MIN_MS ?? 8000);
+const MISSION_JITTER_MS = MISSION_MIN_MS / 2;
 
 class GameAborted extends Error {}
 
@@ -66,24 +67,32 @@ export class Game {
   private readonly pendingHumans = new Map<number, PendingHuman>();
   private readonly abortController = new AbortController();
 
-  static create(store: GameStore, humanNames: string[]): Game {
-    const humanSeats = new Set(shuffle(seatsFrom(1)).slice(0, humanNames.length));
+  // 调用前需要先用 validateSetup 校验配置；人类的身份偏好无法满足时抛出错误
+  static create(store: GameStore, req: CreateGameRequest): Game {
+    const setup = buildSetup(setupOptionsOf(req.setup));
+    const n = setup.length;
+    const { humans: humanRoles, rest } = assignRoles(setup, req.humans.map((h) => h.role));
+    const humanSeats = shuffle(seatsFrom(1, n)).slice(0, req.humans.length);
     const personas = shuffle(PERSONAS);
-    const roles = shuffle(ROLES);
+    const aiRoles = shuffle(rest);
 
     const players: PlayerInfo[] = [];
+    const roles: Record<number, Role> = {};
     const personaDescriptions: Record<number, string> = {};
     const humanTokens: Record<number, string> = {};
-    let h = 0;
     let a = 0;
-    for (const seat of seatsFrom(1)) {
-      if (humanSeats.has(seat)) {
-        players.push({ seat, name: humanNames[h++], kind: 'human', persona: '' });
+    for (const seat of seatsFrom(1, n)) {
+      const h = humanSeats.indexOf(seat);
+      if (h >= 0) {
+        players.push({ seat, name: req.humans[h].name, kind: 'human', persona: '' });
+        roles[seat] = humanRoles[h];
         humanTokens[seat] = randomBytes(16).toString('hex');
       } else {
-        const p = personas[a++];
+        const p = personas[a];
         players.push({ seat, name: p.name, kind: 'ai', persona: p.tag });
+        roles[seat] = aiRoles[a];
         personaDescriptions[seat] = p.description;
+        a++;
       }
     }
 
@@ -91,10 +100,11 @@ export class Game {
       id: new Date().toISOString().replace(/[-:]/g, '').replace(/\..*/, '') + '-' + randomUUID().slice(0, 6),
       createdAt: Date.now(),
       status: 'running',
+      setup,
       players,
       personas: personaDescriptions,
-      roles: Object.fromEntries(roles.map((r, i) => [i + 1, r])),
-      firstLeader: 1 + Math.floor(Math.random() * PLAYER_COUNT),
+      roles,
+      firstLeader: 1 + Math.floor(Math.random() * n),
       sessions: Object.fromEntries(players.filter((p) => p.kind === 'ai').map((p) => [p.seat, null])),
       humanTokens,
     };
@@ -123,6 +133,19 @@ export class Game {
     return this.record.id;
   }
 
+  // 本局人数
+  private get n(): number {
+    return this.record.players.length;
+  }
+
+  private seatsFrom(start: number): number[] {
+    return seatsFrom(start, this.n);
+  }
+
+  private nextSeat(seat: number): number {
+    return nextSeat(seat, this.n);
+  }
+
   get hasHumans(): boolean {
     return Object.keys(this.record.humanTokens).length > 0;
   }
@@ -132,8 +155,8 @@ export class Game {
   }
 
   summary(): GameSummary {
-    const { id, createdAt, status, winner, players } = this.record;
-    return { id, createdAt, status, winner, players, hasHumans: this.hasHumans };
+    const { id, createdAt, status, winner, players, setup } = this.record;
+    return { id, createdAt, status, winner, players, hasHumans: this.hasHumans, setup };
   }
 
   actingNow(): { seat: number; action: ActionType }[] {
@@ -320,13 +343,13 @@ export class Game {
 
   private static needSpeech: Validator = (o) => (o.speech && o.speech.trim() ? null : '缺少 speech');
 
-  private static teamValidator(size: number, speechRequired: boolean): Validator {
+  private static teamValidator(size: number, players: number, speechRequired: boolean): Validator {
     return (o) => {
       if (speechRequired && !(o.speech && o.speech.trim())) return '缺少 speech';
       if (!o.team) return '缺少 team';
       const unique = new Set(o.team);
       if (unique.size !== o.team.length) return 'team 中有重复的座位号';
-      if (o.team.some((s) => !Number.isInteger(s) || s < 1 || s > PLAYER_COUNT)) return '座位号必须在 1 到 8 之间';
+      if (o.team.some((s) => !Number.isInteger(s) || s < 1 || s > players)) return `座位号必须在 1 到 ${players} 之间`;
       if (o.team.length !== size) return `队伍人数必须正好是 ${size} 人，你提名了 ${o.team.length} 人`;
       return null;
     };
@@ -349,10 +372,10 @@ export class Game {
   }
 
   private async play(): Promise<Team> {
-    const { roles, players, firstLeader } = this.record;
+    const { roles, players, firstLeader, setup } = this.record;
 
-    this.emit({ type: 'game_start', players, firstLeader }, PUBLIC);
-    for (let seat = 1; seat <= PLAYER_COUNT; seat++) {
+    this.emit({ type: 'game_start', players, firstLeader, setup }, PUBLIC);
+    for (let seat = 1; seat <= this.n; seat++) {
       const { text, marks } = knowledgeFor(seat, roles);
       this.emit({ type: 'role_assigned', seat, role: roles[seat], knowledge: text, marks }, only(seat));
     }
@@ -361,13 +384,14 @@ export class Game {
     let successes = 0;
     let failures = 0;
 
-    for (let mission = 1; mission <= TEAM_SIZES.length; mission++) {
-      const teamSize = TEAM_SIZES[mission - 1];
+    const sizes = teamSizes(this.n);
+    for (let mission = 1; mission <= sizes.length; mission++) {
+      const teamSize = sizes[mission - 1];
       let team: number[] | null = null;
 
       for (let attempt = 1; attempt <= MAX_ATTEMPTS && !team; attempt++) {
         team = await this.teamRound(mission, attempt, leader, teamSize);
-        leader = nextSeat(leader);
+        leader = this.nextSeat(leader);
         if (!team && attempt === MAX_ATTEMPTS) {
           return this.finish('evil', `第 ${mission} 个任务连续 ${MAX_ATTEMPTS} 次组队失败`);
         }
@@ -387,9 +411,9 @@ export class Game {
   private async teamRound(mission: number, attempt: number, leader: number, teamSize: number): Promise<number[] | null> {
     this.emit({ type: 'round_start', mission, attempt, leader, teamSize, failsRequired: failsRequired(mission) }, PUBLIC);
     const ctx: ActionContext = { mission, attempt, leader, teamSize };
-    const defaultTeam = () => seatsFrom(leader).slice(0, teamSize);
+    const defaultTeam = () => this.seatsFrom(leader).slice(0, teamSize);
 
-    const proposal = await this.ask(leader, 'propose', ctx, Game.teamValidator(teamSize, true), () => ({
+    const proposal = await this.ask(leader, 'propose', ctx, Game.teamValidator(teamSize, this.n, true), () => ({
       action: 'propose',
       speech: '（未能正常发言）',
       team: defaultTeam(),
@@ -398,12 +422,12 @@ export class Game {
     this.emit({ type: 'team_proposed', leader, team: sorted(proposal.team!), final: false }, PUBLIC);
 
     const discussCtx: ActionContext = { ...ctx, team: sorted(proposal.team!) };
-    for (const seat of seatsFrom(nextSeat(leader)).slice(0, PLAYER_COUNT - 1)) {
+    for (const seat of this.seatsFrom(this.nextSeat(leader)).slice(0, this.n - 1)) {
       const out = await this.ask(seat, 'speak', discussCtx, Game.needSpeech, () => ({ action: 'speak', speech: '（沉默）' }));
       this.emit({ type: 'speech', seat, kind: 'discuss', text: out.speech! }, PUBLIC);
     }
 
-    const final = await this.ask(leader, 'final_team', discussCtx, Game.teamValidator(teamSize, false), () => ({
+    const final = await this.ask(leader, 'final_team', discussCtx, Game.teamValidator(teamSize, this.n, false), () => ({
       action: 'final_team',
       team: proposal.team,
     }));
@@ -413,7 +437,7 @@ export class Game {
 
     // 全员同时投票
     const voteCtx: ActionContext = { ...ctx, team };
-    const seats = seatsFrom(1);
+    const seats = this.seatsFrom(1);
     const outs = await Promise.all(
       seats.map((seat) =>
         this.ask(
@@ -427,7 +451,7 @@ export class Game {
     );
     const votes = Object.fromEntries(seats.map((seat, i) => [seat, outs[i].vote!])) as Record<number, 'approve' | 'reject'>;
     const approvals = Object.values(votes).filter((v) => v === 'approve').length;
-    const approved = approvals > PLAYER_COUNT / 2;
+    const approved = approvals > this.n / 2;
     this.emit({ type: 'team_vote', mission, attempt, team, votes, approved }, PUBLIC);
     return approved ? team : null;
   }
@@ -470,7 +494,7 @@ export class Game {
 
   private async assassination(): Promise<Team> {
     const { roles } = this.record;
-    const evil = seatsFrom(1)
+    const evil = this.seatsFrom(1)
       .filter((s) => isEvil(roles[s]))
       .map((seat) => ({ seat, role: roles[seat] }));
     const assassin = evil.find((e) => e.role === 'assassin')!.seat;
@@ -486,7 +510,7 @@ export class Game {
       this.emit({ type: 'speech', seat, kind: 'assassin_discuss', text: out.speech! }, PUBLIC);
     }
 
-    const goodSeats = seatsFrom(1).filter((s) => !isEvil(roles[s]));
+    const goodSeats = this.seatsFrom(1).filter((s) => !isEvil(roles[s]));
     const decision = await this.ask(
       assassin,
       'assassinate',

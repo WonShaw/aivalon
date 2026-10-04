@@ -10,6 +10,7 @@ export interface GameRecord {
   createdAt: number;
   status: GameStatus;
   winner?: Team;
+  setup: Role[]; // 本局身份配置（早期的记录没有这个字段）
   players: PlayerInfo[];
   personas: Record<number, string>; // 座位 -> 给 AI 的性格描述
   roles: Record<number, Role>;

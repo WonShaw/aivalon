@@ -1,10 +1,11 @@
 import { ROLE_NAME, ROLE_TEAM, type ActionType, type GameEvent, type PlayerInfo } from '../../shared/types.ts';
+import { describeSetup } from '../../shared/setup.ts';
 import { RULES_TEXT, failsRequired } from '../game/rules.ts';
 
 // 所有玩家共用同一份系统提示词（身份、性格等通过 user 消息追加），
-// 这样系统提示词前缀在 8 个会话之间完全一致，便于缓存。
+// 这样系统提示词前缀在所有会话之间完全一致，便于缓存。
 export const SYSTEM_PROMPT = `
-你正在参加一局 8 人《阿瓦隆》桌游，其他 7 位玩家可能是 AI，也可能是人类。游戏由裁判系统主持。
+你正在参加一局《阿瓦隆》桌游（8 人或 10 人局），其他玩家可能是 AI，也可能是人类。游戏由裁判系统主持。
 
 ${RULES_TEXT}
 
@@ -72,6 +73,7 @@ export function renderEvent(e: GameEvent, ctx: RenderContext): string | null {
         `你是 ${who(ctx.viewer)}。`,
         `你的性格：${ctx.personaDescription}`,
         `座位顺序（顺时针）：${table}。`,
+        `本局身份配置：${describeSetup(e.setup)}。`,
         `首位队长是 ${who(e.firstLeader)}。`,
       ].join('\n');
     }

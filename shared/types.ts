@@ -6,7 +6,9 @@ export type Role =
   | 'loyal'
   | 'assassin'
   | 'morgana'
-  | 'mordred';
+  | 'mordred'
+  | 'oberon'
+  | 'minion';
 
 export type Team = 'good' | 'evil';
 
@@ -17,6 +19,8 @@ export const ROLE_TEAM: Record<Role, Team> = {
   assassin: 'evil',
   morgana: 'evil',
   mordred: 'evil',
+  oberon: 'evil',
+  minion: 'evil',
 };
 
 export const ROLE_NAME: Record<Role, string> = {
@@ -26,6 +30,8 @@ export const ROLE_NAME: Record<Role, string> = {
   assassin: '刺客',
   morgana: '莫甘娜',
   mordred: '莫德雷德',
+  oberon: '奥伯伦',
+  minion: '莫德雷德的爪牙',
 };
 
 export interface PlayerInfo {
@@ -40,6 +46,7 @@ export interface SeatMark {
   seat: number;
   label: string;
   tone: 'good' | 'evil' | 'unknown';
+  role?: Role; // 能确定具体身份时才有，例如没有莫甘娜时派西维尔看到的梅林
 }
 
 export type Visibility =
@@ -50,7 +57,7 @@ export type Visibility =
 export type SpeechKind = 'propose' | 'discuss' | 'final' | 'assassin_discuss' | 'assassinate';
 
 export type GameEventBody =
-  | { type: 'game_start'; players: PlayerInfo[]; firstLeader: number }
+  | { type: 'game_start'; players: PlayerInfo[]; firstLeader: number; setup: Role[] }
   | { type: 'role_assigned'; seat: number; role: Role; knowledge: string; marks: SeatMark[] }
   | {
       type: 'round_start';
@@ -109,6 +116,7 @@ export interface GameSummary {
   winner?: Team;
   players: PlayerInfo[];
   hasHumans: boolean;
+  setup: Role[]; // 本局的身份配置（不含谁是谁）
 }
 
 // 谁在看：全 AI 对局的上帝视角观众，或者某个座位上的人类玩家
@@ -138,8 +146,17 @@ export interface ActionSubmission {
   target?: number;
 }
 
+// 人类玩家想玩的身份：随机、随机某个阵营，或指定身份
+export type RolePreference = 'random' | Team | Role;
+
+export interface HumanSeatRequest {
+  name: string;
+  role: RolePreference;
+}
+
 export interface CreateGameRequest {
-  humans: string[]; // 人类玩家的名字，空数组表示全 AI 对局
+  humans: HumanSeatRequest[]; // 空数组表示全 AI 对局
+  setup: Role[]; // 8 个身份
 }
 
 export interface CreateGameResponse {

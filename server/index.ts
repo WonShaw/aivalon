@@ -4,13 +4,14 @@ import { extname, join, normalize } from 'node:path';
 import type {
   ActionSubmission,
   CreateGameRequest,
+  HumanSeatRequest,
   CreateGameResponse,
   GameSummary,
   StreamMessage,
   Viewer,
 } from '../shared/types.ts';
+import { STANDARD_SETUP, validateSetup } from '../shared/setup.ts';
 import { Game } from './game/engine.ts';
-import { PLAYER_COUNT } from './game/rules.ts';
 import { GameStore, type GameRecord } from './game/store.ts';
 import { messageVisible } from './game/visibility.ts';
 
@@ -36,6 +37,7 @@ function recordSummary(r: GameRecord): GameSummary {
     winner: r.winner,
     players: r.players,
     hasHumans: Object.keys(r.humanTokens ?? {}).length > 0,
+    setup: r.setup ?? STANDARD_SETUP,
   };
 }
 
@@ -104,12 +106,26 @@ async function createGame(req: IncomingMessage, res: ServerResponse): Promise<vo
   const running = runningGame();
   if (running) return json(res, 409, { error: '已有一局正在进行', id: running.id });
 
-  const body = await readBody<CreateGameRequest>(req);
-  const humans = (body.humans ?? []).map((n) => String(n).trim().slice(0, 12));
-  if (humans.length > PLAYER_COUNT) return json(res, 400, { error: `最多 ${PLAYER_COUNT} 名人类玩家` });
-  if (humans.some((n) => !n)) return json(res, 400, { error: '人类玩家的名字不能为空' });
+  const body = await readBody<Partial<CreateGameRequest>>(req);
+  const setup = body.setup ?? STANDARD_SETUP;
+  const setupError = validateSetup(setup);
+  if (setupError) return json(res, 400, { error: setupError });
 
-  const game = Game.create(store, humans);
+  const humans: HumanSeatRequest[] = (body.humans ?? []).map((h) => ({
+    name: String(h?.name ?? '').trim().slice(0, 12),
+    role: h?.role ?? 'random',
+  }));
+  if (humans.length > setup.length) return json(res, 400, { error: `最多 ${setup.length} 名人类玩家` });
+  if (humans.some((h) => !h.name)) return json(res, 400, { error: '人类玩家的名字不能为空' });
+  const validPrefs = new Set<string>(['random', 'good', 'evil', ...setup]);
+  if (humans.some((h) => !validPrefs.has(h.role))) return json(res, 400, { error: '选择的身份不在本局配置里' });
+
+  let game: Game;
+  try {
+    game = Game.create(store, { humans, setup });
+  } catch (err) {
+    return json(res, 400, { error: err instanceof Error ? err.message : String(err) });
+  }
   games.set(game.id, game);
   void game.run();
 

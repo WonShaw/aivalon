@@ -4,7 +4,11 @@ import { ROLE_NAME, ROLE_TEAM, type Role, type Team } from '../shared/types.ts';
 // 玩家对其他座位身份的猜测，只保存在本机浏览器里
 export type Guess = Team | Role;
 
-export const GUESS_OPTIONS: Guess[] = ['good', 'evil', 'merlin', 'percival', 'loyal', 'assassin', 'morgana', 'mordred'];
+const ROLE_ORDER: Role[] = ['merlin', 'percival', 'loyal', 'assassin', 'morgana', 'mordred', 'oberon', 'minion'];
+
+export function guessOptions(setup: Role[]): Guess[] {
+  return ['good', 'evil', ...ROLE_ORDER.filter((r) => setup.includes(r))];
+}
 
 export function guessLabel(g: Guess): string {
   if (g === 'good') return '好人';

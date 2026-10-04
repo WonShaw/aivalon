@@ -1,26 +1,29 @@
 import { ROLE_NAME, ROLE_TEAM, type Role, type SeatMark, type Team } from '../../shared/types.ts';
-import { PLAYER_COUNT, ROLES, ROLE_SIGHT } from '../../shared/setup.ts';
+import { roleSight } from '../../shared/setup.ts';
 import { guessTeam, type Guess } from '../guesses.ts';
 
 interface Props {
+  setup: Role[]; // 本局身份配置
   roles: Record<number, Role>; // 当前观看者能看到的身份
   nightMarks: SeatMark[];
   guesses: Record<number, Guess>;
   canMark: boolean;
 }
 
-const ROLE_ORDER: Role[] = ['merlin', 'percival', 'loyal', 'assassin', 'morgana', 'mordred'];
+const ROLE_ORDER: Role[] = ['merlin', 'percival', 'loyal', 'assassin', 'morgana', 'mordred', 'oberon', 'minion'];
 
 // 本局身份配置，以及按"已知 + 你的标记"统计出的每种身份已经对上了几个
-export function RoleGuide({ roles, nightMarks, guesses, canMark }: Props) {
-  const total = (r: Role) => ROLES.filter((x) => x === r).length;
-  const teamTotal = (t: Team) => ROLES.filter((x) => ROLE_TEAM[x] === t).length;
+export function RoleGuide({ setup, roles, nightMarks, guesses, canMark }: Props) {
+  const total = (r: Role) => setup.filter((x) => x === r).length;
+  const teamTotal = (t: Team) => setup.filter((x) => ROLE_TEAM[x] === t).length;
+  const inSetup = ROLE_ORDER.filter((r) => setup.includes(r));
 
   const roleCount: Partial<Record<Role, number>> = {};
   const teamCount: Record<Team, number> = { good: 0, evil: 0 };
   const evilMarks = new Set(nightMarks.filter((m) => m.tone === 'evil').map((m) => m.seat));
-  for (let seat = 1; seat <= PLAYER_COUNT; seat++) {
-    const known = roles[seat];
+  const markRoles = Object.fromEntries(nightMarks.filter((m) => m.role).map((m) => [m.seat, m.role!]));
+  for (let seat = 1; seat <= setup.length; seat++) {
+    const known = roles[seat] ?? markRoles[seat];
     const guess = guesses[seat];
     const role = known ?? (guess && guess !== 'good' && guess !== 'evil' ? guess : undefined);
     if (role) roleCount[role] = (roleCount[role] ?? 0) + 1;
@@ -37,10 +40,10 @@ export function RoleGuide({ roles, nightMarks, guesses, canMark }: Props) {
         </span>
       </div>
       <div className="guide-roles">
-        {ROLE_ORDER.filter((r) => ROLE_TEAM[r] === team).map((r) => {
+        {inSetup.filter((r) => ROLE_TEAM[r] === team).map((r) => {
           const n = roleCount[r] ?? 0;
           return (
-            <span key={r} className={`guide-role ${team}`} title={ROLE_SIGHT[r]}>
+            <span key={r} className={`guide-role ${team}`} title={roleSight(r, setup)}>
               {ROLE_NAME[r]} ×{total(r)}
               {n > 0 && <span className={`guide-count${n > total(r) ? ' over' : ''}`}>已对上 {n}</span>}
             </span>
@@ -58,9 +61,9 @@ export function RoleGuide({ roles, nightMarks, guesses, canMark }: Props) {
       <details className="guide-sight">
         <summary>各身份在夜晚能看到什么</summary>
         <ul>
-          {ROLE_ORDER.map((r) => (
+          {inSetup.map((r) => (
             <li key={r}>
-              <b>{ROLE_NAME[r]}</b>：{ROLE_SIGHT[r]}
+              <b>{ROLE_NAME[r]}</b>：{roleSight(r, setup)}
             </li>
           ))}
         </ul>

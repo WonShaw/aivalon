@@ -24,5 +24,5 @@ export const ACTION_LABEL: Record<ActionType, string> = {
 
 // 每个座位一个固定色相，用于头像
 export function seatHue(seat: number): number {
-  return [32, 200, 140, 280, 350, 90, 240, 170][(seat - 1) % 8];
+  return [32, 200, 140, 280, 350, 90, 240, 170, 55, 315][(seat - 1) % 10];
 }

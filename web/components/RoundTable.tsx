@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import type { ActionType, PlayerInfo, Role, SeatMark, Viewer } from '../../shared/types.ts';
-import { TEAM_SIZES } from '../../shared/setup.ts';
+import { teamSizes } from '../../shared/setup.ts';
 import type { BoardState } from '../derive.ts';
 import { ACTION_LABEL, roleLabel, roleTone, seatHue } from '../format.ts';
-import { GUESS_OPTIONS, guessLabel, guessTeam, type Guess } from '../guesses.ts';
+import { guessLabel, guessOptions, guessTeam, type Guess } from '../guesses.ts';
 
 interface Props {
+  setup: Role[];
   players: PlayerInfo[];
   board: BoardState;
   acting: Record<number, ActionType>;
@@ -15,7 +16,7 @@ interface Props {
   onGuess: (seat: number, guess: Guess | null) => void;
 }
 
-export function RoundTable({ players, board, acting, viewer, roles, guesses, onGuess }: Props) {
+export function RoundTable({ setup, players, board, acting, viewer, roles, guesses, onGuess }: Props) {
   const [selected, setSelected] = useState<number | null>(null);
   const mySeat = viewer?.kind === 'player' ? viewer.seat : null;
   const marks: Record<number, SeatMark> = {};
@@ -26,12 +27,12 @@ export function RoundTable({ players, board, acting, viewer, roles, guesses, onG
   const selectedPlayer = selected !== null && canGuess(selected) ? players.find((p) => p.seat === selected) : undefined;
 
   return (
-    <div className="table-wrap">
+    <div className={`table-wrap seats-${players.length}`}>
       <div className="table">
         <div className="table-center">
           <div className="table-title">{board.gameOver ? '游戏结束' : `第 ${board.mission} 个任务`}</div>
           <div className="missions">
-            {TEAM_SIZES.map((size, i) => {
+            {teamSizes(players.length).map((size, i) => {
               const r = board.missionResults[i];
               const cls = r
                 ? r.success
@@ -60,7 +61,7 @@ export function RoundTable({ players, board, acting, viewer, roles, guesses, onG
         </div>
 
         {players.map((p) => {
-          const angle = (-90 + (p.seat - 1) * 45) * (Math.PI / 180);
+          const angle = (-90 + ((p.seat - 1) * 360) / players.length) * (Math.PI / 180);
           const style = {
             left: `${50 + 39 * Math.cos(angle)}%`,
             top: `${50 + 40 * Math.sin(angle)}%`,
@@ -145,7 +146,7 @@ export function RoundTable({ players, board, acting, viewer, roles, guesses, onG
             <span className="muted">（只有你自己看得到）</span>
           </div>
           <div className="guess-options">
-            {GUESS_OPTIONS.map((g) => (
+            {guessOptions(setup).map((g) => (
               <button
                 key={g}
                 className={`guess-option ${guessTeam(g)}${guesses[selectedPlayer.seat] === g ? ' active' : ''}`}

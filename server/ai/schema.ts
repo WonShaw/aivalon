@@ -26,7 +26,7 @@ export const OUTPUT_SCHEMA = {
     },
     team: {
       type: 'array',
-      items: { type: 'integer', minimum: 1, maximum: 8 },
+      items: { type: 'integer', minimum: 1, maximum: 10 },
       description: '提名的队伍（座位号列表）',
     },
     vote: {
@@ -42,7 +42,7 @@ export const OUTPUT_SCHEMA = {
     target: {
       type: 'integer',
       minimum: 1,
-      maximum: 8,
+      maximum: 10,
       description: '刺杀目标的座位号',
     },
   },
