@@ -611,7 +611,7 @@ textarea {
   gap: 4px 14px;
   font-size: 11px;
   color: var(--muted);
-  margin-top: 4px;
+  margin-top: 16px;
 }
 .table-legend span {
   display: inline-flex;

@@ -117,9 +117,14 @@ export function RoundTable({ setup, players, board, acting, viewer, roles, guess
                       : p.persona}
               </div>
               <div className="seat-badges">
+                {/* 每个座位最多一个标记：已知身份 > 自己的猜测 > 夜晚信息（有猜测时夜晚信息放进悬停提示） */}
                 {role && <span className={`badge ${roleTone(role)}`}>{roleLabel(role)}</span>}
-                {!role && mark && <span className={`badge ${mark.tone}`}>{mark.label}</span>}
-                {!role && guess && <span className={`badge guess ${guessTeam(guess)}`}>{guessLabel(guess)}?</span>}
+                {!role && guess && (
+                  <span className={`badge guess ${guessTeam(guess)}`} title={mark ? `夜晚信息：${mark.label}` : undefined}>
+                    {guessLabel(guess)}?
+                  </span>
+                )}
+                {!role && !guess && mark && <span className={`badge ${mark.tone}`}>{mark.label}</span>}
               </div>
             </div>
           );
