@@ -1,0 +1,188 @@
+import { useMemo, useState } from 'react';
+import type { CreateGameResponse, GameStatus } from '../shared/types.ts';
+import { api } from './client.ts';
+import { ActionPanel } from './components/ActionPanel.tsx';
+import { RoleGuide } from './components/RoleGuide.tsx';
+import { RoundTable } from './components/RoundTable.tsx';
+import { Timeline } from './components/Timeline.tsx';
+import { deriveBoard, visibleRoles } from './derive.ts';
+import { playerName, roleLabel, roleTone } from './format.ts';
+import { useGuesses } from './guesses.ts';
+import { useGameStream } from './useGameStream.ts';
+
+const STATUS_LABEL: Record<GameStatus, string> = {
+  running: '进行中',
+  finished: '已结束',
+  aborted: '已中止',
+  error: '出错',
+};
+
+function usePersistentToggle(key: string, initial: boolean): [boolean, (v: boolean) => void] {
+  const [value, setValue] = useState(() => {
+    try {
+      const v = localStorage.getItem(key);
+      return v === null ? initial : v === '1';
+    } catch {
+      return initial;
+    }
+  });
+  const set = (v: boolean) => {
+    setValue(v);
+    try {
+      localStorage.setItem(key, v ? '1' : '0');
+    } catch {
+      // 忽略
+    }
+  };
+  return [value, set];
+}
+
+interface Props {
+  gameId: string;
+  token: string | null;
+  onBack: () => void;
+  onCreated: (res: CreateGameResponse) => void;
+}
+
+export function GameView({ gameId, token, onBack, onCreated }: Props) {
+  const state = useGameStream(gameId, token);
+  const { viewer, summary, events } = state;
+  const board = useMemo(() => deriveBoard(events, viewer), [events, viewer]);
+  const [godView, setGodView] = usePersistentToggle('aivalon.godView', true);
+  const [showThoughts, setShowThoughts] = usePersistentToggle('aivalon.thoughts', false);
+
+  const isSpectator = viewer?.kind === 'spectator';
+  const players = summary?.players ?? [];
+  const mySeat = viewer?.kind === 'player' ? viewer.seat : null;
+  const roles = visibleRoles(board, viewer, godView);
+  const [guesses, setGuess] = useGuesses(gameId, mySeat ? `seat${mySeat}` : 'spectator');
+  const canMark = players.some((p) => p.seat !== mySeat && !roles[p.seat]);
+
+  const [restarting, setRestarting] = useState(false);
+  const humanNames = players.filter((p) => p.kind === 'human').map((p) => p.name);
+
+  // 用相同的配置再开一局：同样的人类玩家（座位和身份重新随机），其余是 AI
+  const playAgain = async () => {
+    setRestarting(true);
+    try {
+      onCreated(await api.createGame(humanNames));
+    } catch (e) {
+      alert(e instanceof Error ? e.message : String(e));
+    } finally {
+      setRestarting(false);
+    }
+  };
+  const playAgainButton = summary && summary.status !== 'running' && (
+    <button className="primary" disabled={restarting} onClick={playAgain}>
+      {restarting ? '创建中…' : humanNames.length > 1 ? '再来一局（生成新链接）' : '再来一局'}
+    </button>
+  );
+
+  const stop = async () => {
+    if (!confirm('确定要结束这局游戏吗？')) return;
+    try {
+      await api.stop(gameId, token ?? undefined);
+    } catch (e) {
+      alert(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  return (
+    <div className="game">
+      <header className="topbar">
+        <button className="link" onClick={onBack}>
+          ← 大厅
+        </button>
+        <div className="brand small">AIVALON</div>
+        {summary && <span className={`pill ${summary.status}`}>{STATUS_LABEL[summary.status]}</span>}
+        <span className="muted mode">
+          {isSpectator ? '观战 · 全 AI 对局' : mySeat ? `你是 ${mySeat}号 ${playerName(players, mySeat)}` : ''}
+        </span>
+        <div className="spacer" />
+        {isSpectator && (
+          <>
+            <label className="toggle">
+              <input type="checkbox" checked={godView} onChange={(e) => setGodView(e.target.checked)} />
+              上帝视角
+            </label>
+            <label className="toggle">
+              <input type="checkbox" checked={showThoughts} onChange={(e) => setShowThoughts(e.target.checked)} />
+              思考摘要
+            </label>
+          </>
+        )}
+        {summary?.status === 'running' && (
+          <button className="ghost danger" onClick={stop}>
+            结束对局
+          </button>
+        )}
+        {playAgainButton}
+      </header>
+
+      {state.error && <div className="notice">{state.error}</div>}
+
+      {summary ? (
+        <div className="game-body">
+          <aside className="side">
+            <RoundTable
+              players={players}
+              board={board}
+              acting={state.acting}
+              viewer={viewer}
+              roles={roles}
+              guesses={guesses}
+              onGuess={setGuess}
+            />
+
+            {board.myRole && (
+              <div className={`role-card ${roleTone(board.myRole.role)}`}>
+                <div className="role-card-title">你的身份：{roleLabel(board.myRole.role)}</div>
+                <div>{board.myRole.knowledge}</div>
+              </div>
+            )}
+
+            <RoleGuide roles={roles} nightMarks={board.myRole?.marks ?? []} guesses={guesses} canMark={canMark} />
+
+            {isSpectator && board.usage.calls > 0 && (
+              <div className="stats">
+                <div>
+                  <span className="muted">AI 调用</span> {board.usage.calls} 次
+                </div>
+                <div>
+                  <span className="muted">估算费用</span> ${board.usage.costUsd.toFixed(2)}
+                </div>
+                <div>
+                  <span className="muted">输出 token</span> {board.usage.output.toLocaleString()}
+                </div>
+                <div>
+                  <span className="muted">缓存命中</span>{' '}
+                  {Math.round((board.usage.cacheRead / Math.max(1, board.usage.cacheRead + board.usage.cacheWrite + board.usage.input)) * 100)}%
+                </div>
+              </div>
+            )}
+          </aside>
+
+          <main className="main">
+            <Timeline
+              events={events}
+              players={players}
+              viewer={viewer}
+              showRoles={godView}
+              showThoughts={showThoughts}
+              roles={roles}
+              acting={state.acting}
+              live={state.live}
+            >
+              {playAgainButton && <div className="play-again">{playAgainButton}</div>}
+            </Timeline>
+            {state.request && token && (
+              <ActionPanel gameId={gameId} token={token} request={state.request} players={players} />
+            )}
+          </main>
+        </div>
+      ) : (
+        !state.error && <div className="notice">连接中…</div>
+      )}
+    </div>
+  );
+}
