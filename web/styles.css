@@ -268,6 +268,13 @@ textarea {
 .segmented button + button {
   border-left: 1px solid var(--line);
 }
+/* 分隔线是按钮的左边框，悬停时不能像普通按钮那样变金色 */
+.segmented button:hover:not(:disabled) {
+  border-color: var(--line);
+}
+.segmented button:not(.active):hover:not(:disabled) {
+  background: var(--panel-2);
+}
 .segmented button.active {
   background: var(--gold-soft);
   color: var(--gold);
