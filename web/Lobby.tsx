@@ -16,6 +16,7 @@ import {
   type Role,
   type RolePreference,
 } from '../shared/types.ts';
+import { MAX_NAME_LENGTH, defaultHumanName, validateHumanNames } from '../shared/names.ts';
 import { api, createGame, forgetGame, gameUrl, loadSeats, type SavedSeat } from './client.ts';
 
 interface Props {
@@ -33,13 +34,21 @@ interface LobbyForm {
   options: SetupOptions;
   humans: HumanSeatRequest[];
 }
-const DEFAULT_FORM: LobbyForm = { mode: 'ai', options: PRESETS[8][0].options, humans: [{ name: '我', role: 'random' }] };
+const DEFAULT_FORM: LobbyForm = {
+  mode: 'ai',
+  options: PRESETS[8][0].options,
+  humans: [{ name: defaultHumanName(0), role: 'random' }],
+};
 
 function loadForm(): LobbyForm {
   try {
     const form = { ...DEFAULT_FORM, ...JSON.parse(localStorage.getItem(FORM_KEY) ?? '{}') };
     // 早期保存的表单没有人数
     if (!PLAYER_COUNTS.includes(form.options.players)) form.options = { ...form.options, players: 8 };
+    // 早期的默认名字"我"之类容易让 AI 误解，换成默认名
+    form.humans = form.humans.map((h: HumanSeatRequest, i: number) =>
+      h.name.trim() && validateHumanNames([h.name]) ? { ...h, name: defaultHumanName(i) } : h,
+    );
     return form;
   } catch {
     return DEFAULT_FORM;
@@ -114,7 +123,7 @@ export function Lobby({ onOpen, onCreated, created }: Props) {
     setOptions({ ...options, evil: options.evil.includes(r) ? options.evil.filter((x) => x !== r) : [...options.evil, r] });
 
   const setCount = (n: number) =>
-    update({ humans: Array.from({ length: n }, (_, i) => humans[i] ?? { name: `玩家${i + 1}`, role: 'random' }) });
+    update({ humans: Array.from({ length: n }, (_, i) => humans[i] ?? { name: defaultHumanName(i), role: 'random' }) });
   const setHuman = (i: number, patch: Partial<HumanSeatRequest>) =>
     update({ humans: humans.map((h, j) => (j === i ? { ...h, ...patch } : h)) });
 
@@ -147,6 +156,7 @@ export function Lobby({ onOpen, onCreated, created }: Props) {
     }
   };
 
+  const nameError = mode === 'human' ? validateHumanNames(humans.map((h) => h.name)) : null;
   const running = games.find((g) => g.status === 'running');
   const sameOptions = (a: SetupOptions) => buildSetup(a).join() === setup.join();
 
@@ -236,8 +246,8 @@ export function Lobby({ onOpen, onCreated, created }: Props) {
                 <div key={i} className="human-row">
                   <input
                     value={h.name}
-                    maxLength={12}
-                    placeholder={`玩家${i + 1} 的名字`}
+                    maxLength={MAX_NAME_LENGTH}
+                    placeholder={`${defaultHumanName(i)} 的名字`}
                     onChange={(e) => setHuman(i, { name: e.target.value })}
                   />
                   <select value={h.role} onChange={(e) => setHuman(i, { role: e.target.value as RolePreference })}>
@@ -254,11 +264,12 @@ export function Lobby({ onOpen, onCreated, created }: Props) {
               座位随机分配。{humans.length > 1 && '创建后会为每位人类玩家生成专属链接，发给对应的人即可；'}
               选择的身份只有本人知道。
             </div>
+            {nameError && <div className="error-text">{nameError}</div>}
           </div>
         )}
 
         <div className="row">
-          <button className="primary" disabled={busy || !!running} onClick={start}>
+          <button className="primary" disabled={busy || !!running || !!nameError} onClick={start}>
             {busy ? '创建中…' : '开始游戏'}
           </button>
           {running && <span className="muted">已有一局正在进行，结束后才能开新局。</span>}

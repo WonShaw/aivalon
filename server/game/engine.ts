@@ -75,7 +75,9 @@ export class Game {
     const n = setup.length;
     const { humans: humanRoles, rest } = assignRoles(setup, req.humans.map((h) => h.role));
     const humanSeats = shuffle(seatsFrom(1, n)).slice(0, req.humans.length);
-    const personas = shuffle(PERSONAS);
+    // 和人类重名的 AI 性格这局不用，避免桌上出现两个同名玩家
+    const humanNames = new Set(req.humans.map((h) => h.name));
+    const personas = shuffle(PERSONAS.filter((p) => !humanNames.has(p.name)));
     const aiRoles = shuffle(rest);
 
     const players: PlayerInfo[] = [];

@@ -10,6 +10,7 @@ import type {
   StreamMessage,
   Viewer,
 } from '../shared/types.ts';
+import { validateHumanNames } from '../shared/names.ts';
 import { STANDARD_SETUP, validateSetup } from '../shared/setup.ts';
 import { deleteAISession } from './ai/player.ts';
 import { Game } from './game/engine.ts';
@@ -127,11 +128,12 @@ async function createGame(req: IncomingMessage, res: ServerResponse): Promise<vo
   if (setupError) return json(res, 400, { error: setupError });
 
   const humans: HumanSeatRequest[] = (body.humans ?? []).map((h) => ({
-    name: String(h?.name ?? '').trim().slice(0, 12),
+    name: String(h?.name ?? '').trim(),
     role: h?.role ?? 'random',
   }));
   if (humans.length > setup.length) return json(res, 400, { error: `最多 ${setup.length} 名人类玩家` });
-  if (humans.some((h) => !h.name)) return json(res, 400, { error: '人类玩家的名字不能为空' });
+  const nameError = validateHumanNames(humans.map((h) => h.name));
+  if (nameError) return json(res, 400, { error: nameError });
   const validPrefs = new Set<string>(['random', 'good', 'evil', ...setup]);
   if (humans.some((h) => !validPrefs.has(h.role))) return json(res, 400, { error: '选择的身份不在本局配置里' });
 
