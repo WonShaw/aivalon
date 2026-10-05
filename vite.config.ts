@@ -7,6 +7,7 @@ export default defineConfig({
   build: { outDir: '../dist/web', emptyOutDir: true },
   server: {
     port: Number(process.env.PORT ?? 5180),
+    host: true, // 监听所有网卡，局域网里的其他人也能打开
     proxy: { '/api': `http://localhost:${process.env.AIVALON_API_PORT ?? 8787}` },
   },
 });

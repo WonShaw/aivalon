@@ -55,6 +55,11 @@ export function gameUrl(id: string, token?: string): string {
   return `${location.origin}${location.pathname}?${params}`;
 }
 
+// 通过 localhost 打开时，生成的链接在别的电脑上打不开
+export function isLoopbackHost(): boolean {
+  return ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname);
+}
+
 // 记住开局时的完整设置（包括人类选的身份），"再来一局"时沿用。只存在创建者自己的浏览器里
 const REQUEST_KEY = 'aivalon.requests';
 

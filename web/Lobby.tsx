@@ -17,7 +17,7 @@ import {
   type RolePreference,
 } from '../shared/types.ts';
 import { MAX_NAME_LENGTH, defaultHumanName, validateHumanNames } from '../shared/names.ts';
-import { api, createGame, forgetGame, gameUrl, loadSeats, type SavedSeat } from './client.ts';
+import { api, createGame, forgetGame, gameUrl, isLoopbackHost, loadSeats, type SavedSeat } from './client.ts';
 
 interface Props {
   onOpen: (gameId: string, token?: string) => void;
@@ -298,6 +298,12 @@ export function Lobby({ onOpen, onCreated, created }: Props) {
         {created && (
           <div className="links">
             <div className="muted">座位已随机分配。每个链接只能看到对应玩家的信息：</div>
+            {isLoopbackHost() && (
+              <div className="warn small-text">
+                当前页面是用 localhost 打开的，这些链接只有本机能用。发给局域网里的其他人前，把链接里的 localhost
+                换成本机的局域网 IP，或者用局域网地址（npm run dev 启动时终端里 Network 那一行）打开大厅再创建对局。
+              </div>
+            )}
             {created.seats.map((s) => (
               <div key={s.seat} className="link-row">
                 <span>
