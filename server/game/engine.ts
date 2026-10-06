@@ -388,7 +388,7 @@ export class Game {
     fallback: () => ActionSubmission,
   ): Promise<ActionSubmission> {
     const pending = this.pendingFor(seat);
-    let prompt = [pending, actionInstruction(action, ctx)].filter(Boolean).join('\n\n');
+    let prompt = [pending, actionInstruction(action, ctx, this.canAssassinateEarly(seat))].filter(Boolean).join('\n\n');
 
     for (let i = 0; i <= MAX_INVALID_RETRIES; i++) {
       const res = await this.callAI(seat, action, prompt);
