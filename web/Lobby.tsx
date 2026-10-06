@@ -357,7 +357,7 @@ export function Lobby({ onOpen, onCreated, created }: Props) {
                     ) : (
                       <span className="muted small-text">需要玩家专属链接</span>
                     ))}
-                  {g.status !== 'running' && (
+                  {g.status !== 'running' && g.postgame !== 'running' && (
                     <button
                       className="ghost danger"
                       disabled={deleting === g.id}
