@@ -1,5 +1,5 @@
 // 不调用模型，用 8 个脚本"人类"随机行动跑完整局，检查状态机、身份分配和信息可见性
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { appendFileSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { PRESETS, buildSetup } from '../shared/setup.ts';
@@ -163,4 +163,16 @@ try {
 } catch (e) {
   console.log('duplicate pick rejected:', (e as Error).message);
 }
+// 赛后交流中断、且事件文件最后一行被写坏：恢复不能抛错（否则服务起不来），状态仍要收尾，这局才能删除
+{
+  const record = store.listRecords().find((r) => r.status === 'finished')!;
+  record.postgame = 'running';
+  store.saveRecord(record);
+  appendFileSync(join(dir, record.id, 'events.jsonl'), '{"type":"spee');
+  Game.recoverInterrupted(store);
+  if (store.loadRecord(record.id)!.postgame !== 'done') throw new Error('corrupt events blocked postgame recovery');
+  store.deleteGame(record.id);
+  console.log('corrupt events recovery ok');
+}
+
 console.log('visibility ok');

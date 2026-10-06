@@ -142,10 +142,15 @@ export class Game {
         store.saveRecord(record);
       }
       if (record.postgame === 'running') {
-        const seq = store.loadEvents(record.id).length + 1;
-        store.appendEvent(record.id, { type: 'postgame_end', seq, ts: Date.now(), visibility: PUBLIC });
         record.postgame = 'done';
         store.saveRecord(record);
+        // 补上结束事件，时间线才完整。事件文件损坏（比如崩溃时写坏了最后一行）时跳过，不影响服务启动和这局的删除
+        try {
+          const seq = store.loadEvents(record.id).length + 1;
+          store.appendEvent(record.id, { type: 'postgame_end', seq, ts: Date.now(), visibility: PUBLIC });
+        } catch (err) {
+          console.warn(`[game ${record.id}] 事件记录无法读取，没有补上赛后交流的结束事件：`, err instanceof Error ? err.message : err);
+        }
       }
     }
   }
