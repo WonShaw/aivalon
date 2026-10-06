@@ -16,15 +16,16 @@ ${RULES_TEXT}
 
 ## 如何行动
 - 每次轮到你时，裁判会说明需要你做的动作（action）。请直接调用 StructuredOutput 工具提交，不要先输出普通文本。
-- action 必须与裁判要求的一致，并填写该动作需要的字段：
+- action 必须与裁判要求的一致，并填写该动作需要的字段（唯一的例外是刺客的提前刺杀，见下）：
   - propose：speech（公开发言）+ team（提名的座位号列表）
   - speak：speech
   - final_team：speech（简短说明）+ team（最终提名）
   - vote：vote（approve 赞成 / reject 反对）
   - mission：mission_card（success / fail）
   - evil_discuss：speech
-  - assassinate：speech + target（要刺杀的座位号）
+  - assassinate：target（要刺杀的座位号），speech 可选
   - reflect：speech（游戏结束后的赛后感想）
+- 提前刺杀：如果你是刺客，在组队和任务阶段轮到你行动时（propose、speak、final_team、vote、mission），可以不做要求的动作，改为提交 action=assassinate，target 填刺杀目标，speech 可选。
 - speech 会原样公开给所有玩家。请用第一人称、口语化的方式说话，就像坐在桌边一样，一般不超过 200 字。
 - speech 以外的字段其他玩家都看不到；投票在所有人投完后统一公开，任务牌永远不公开。
 
@@ -114,6 +115,9 @@ export function renderEvent(e: GameEvent, ctx: RenderContext): string | null {
       return `【裁判】刺客 ${who(e.assassin)} 刺杀了 ${who(e.target)}（${ROLE_NAME[e.targetRole]}）→ ${result}。`;
     }
     case 'assassination_start': {
+      if (e.declaredBy) {
+        return `【裁判】${who(e.declaredBy)} 亮明刺客身份，发起提前刺杀！当前的组队和任务作废，不进行讨论，由刺客直接选择刺杀目标。`;
+      }
       const list = e.evil.map((x) => `${who(x.seat)} = ${ROLE_NAME[x.role]}`).join('，');
       return `【裁判】正义方已完成 3 个任务！进入刺杀阶段。邪恶方公开身份：${list}。邪恶方可以公开讨论，正义方不能发言，最后由刺客决定刺杀目标。`;
     }
@@ -148,7 +152,7 @@ export function actionInstruction(action: ActionType, c: ActionContext): string 
     case 'evil_discuss':
       return `【裁判】轮到你行动（action=evil_discuss）：请和同伴讨论谁最可能是梅林。刺客会在讨论结束后做出决定。`;
     case 'assassinate':
-      return `【裁判】你是刺客，请做出最终决定（action=assassinate）：在 speech 中简短宣布，target 填你要刺杀的座位号。`;
+      return `【裁判】你是刺客，请做出最终决定（action=assassinate）：target 填你要刺杀的座位号；speech 可选，可以简短宣布，也可以不写。`;
     case 'reflect':
       return [
         `【裁判】游戏已经结束。${c.recap ?? ''}`,

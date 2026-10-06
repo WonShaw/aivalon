@@ -79,7 +79,8 @@ export type GameEventBody =
     }
   | { type: 'mission_cards'; mission: number; cards: Record<number, 'success' | 'fail'> }
   | { type: 'mission_result'; mission: number; team: number[]; fails: number; success: boolean }
-  | { type: 'assassination_start'; evil: { seat: number; role: Role }[] }
+  // evil：亮明身份的邪恶方。刺客提前发起刺杀时（declaredBy 是刺客的座位）只亮明刺客
+  | { type: 'assassination_start'; evil: { seat: number; role: Role }[]; declaredBy?: number }
   | { type: 'assassination'; assassin: number; target: number; targetRole: Role; hit: boolean }
   | {
       type: 'game_over';
@@ -142,6 +143,7 @@ export interface HumanRequest {
   team?: number[];
   canFail?: boolean; // 任务牌：只有邪恶方可以出失败
   targets?: number[]; // 刺杀：可选目标
+  canAssassinate?: boolean; // 刺客可以不做这个动作，改为发起提前刺杀
 }
 
 // 人类玩家提交的动作，字段与 AI 的结构化输出一致

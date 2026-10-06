@@ -60,6 +60,9 @@ export function deriveBoard(events: GameEvent[], viewer: Viewer | null): BoardSt
         break;
       case 'assassination_start':
         for (const x of e.evil) s.knownRoles[x.seat] = s.publicRoles[x.seat] = x.role;
+        // 刺杀阶段不再显示提名和投票（提前刺杀时当前的组队作废）
+        s.proposedTeam = [];
+        s.lastVote = null;
         break;
       case 'game_over':
         s.gameOver = { winner: e.winner, reason: e.reason };

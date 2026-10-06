@@ -7,7 +7,7 @@ import { SYSTEM_PROMPT } from './prompts.ts';
 import { OUTPUT_SCHEMA, type AIOutput } from './schema.ts';
 
 const MODEL = process.env.AIVALON_MODEL ?? 'claude-sonnet-5-5';
-const EFFORT = (process.env.AIVALON_EFFORT ?? 'medium') as Options['effort'];
+const EFFORT = (process.env.AIVALON_EFFORT ?? 'high') as Options['effort'];
 // summarized：只拿官方的思考摘要；omitted：完全不返回思考内容
 const THINKING_DISPLAY = process.env.AIVALON_THINKING_DISPLAY === 'omitted' ? 'omitted' : 'summarized';
 

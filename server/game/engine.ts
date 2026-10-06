@@ -50,6 +50,7 @@ const MISSION_MIN_MS = Number(process.env.AIVALON_MISSION_MIN_MS ?? 8000);
 const MISSION_JITTER_MS = MISSION_MIN_MS / 2;
 
 class GameAborted extends Error {}
+class EarlyAssassination extends Error {} // 刺客发起了提前刺杀，当前的组队和任务作废
 
 type Validator = (o: ActionSubmission) => string | null;
 
@@ -68,6 +69,9 @@ export class Game {
   private readonly acting = new Map<number, ActionType>();
   private readonly pendingHumans = new Map<number, PendingHuman>();
   private abortController = new AbortController(); // 当前阶段（对局 / 赛后交流）的中止信号
+  private phase: 'play' | 'assassination' | 'over' = 'play';
+  private early: { seat: number; target: number; speech?: string } | null = null; // 刺客发起的提前刺杀
+  private readonly inflight = new Set<Promise<ActionSubmission>>(); // 还没结束的询问
 
   // 调用前需要先用 validateSetup 校验配置；人类的身份偏好无法满足时抛出错误
   static create(store: GameStore, req: CreateGameRequest): Game {
@@ -195,8 +199,9 @@ export class Game {
   submitHuman(seat: number, submission: ActionSubmission): string | null {
     const pending = this.pendingHumans.get(seat);
     if (!pending) return '现在不需要你行动';
-    if (submission.action !== pending.request.action) return `现在需要的动作是 ${pending.request.action}`;
-    const error = pending.validate(submission);
+    const early = this.isEarlyAssassination(seat, pending.request.action, submission);
+    if (!early && submission.action !== pending.request.action) return `现在需要的动作是 ${pending.request.action}`;
+    const error = early ? this.earlyTargetError(seat, submission) : pending.validate(submission);
     if (error) return error;
     this.pendingHumans.delete(seat);
     this.broadcast({ kind: 'request_done', seat, id: pending.request.id });
@@ -207,6 +212,35 @@ export class Game {
   stop(): void {
     this.abortController.abort();
     for (const pending of this.pendingHumans.values()) pending.reject(new GameAborted());
+    this.pendingHumans.clear();
+  }
+
+  // 刺客在组队和任务阶段轮到自己行动时，可以不做要求的动作，改为提交 assassinate 发起提前刺杀
+  private canAssassinateEarly(seat: number): boolean {
+    return (
+      this.record.status === 'running' && this.phase === 'play' && this.early === null && this.record.roles[seat] === 'assassin'
+    );
+  }
+
+  private isEarlyAssassination(seat: number, requested: ActionType, o: ActionSubmission): boolean {
+    return o.action === 'assassinate' && requested !== 'assassinate' && this.canAssassinateEarly(seat);
+  }
+
+  private earlyTargetError(seat: number, o: ActionSubmission): string | null {
+    if (o.target === undefined) return '缺少 target';
+    if (!Number.isInteger(o.target) || o.target < 1 || o.target > this.n || o.target === seat) {
+      return `target 必须是除你以外的座位号（1 到 ${this.n}）`;
+    }
+    return null;
+  }
+
+  // 记下提前刺杀并取消其他人类玩家还没完成的请求；正在思考的 AI 不打断，等它们做完（结果作废）再结算
+  private declareEarly(seat: number, o: ActionSubmission): void {
+    this.early = { seat, target: o.target!, speech: o.speech };
+    for (const [s, pending] of this.pendingHumans) {
+      this.broadcast({ kind: 'request_done', seat: s, id: pending.request.id });
+      pending.reject(new EarlyAssassination());
+    }
     this.pendingHumans.clear();
   }
 
@@ -254,6 +288,8 @@ export class Game {
 
   private checkAborted(): void {
     if (this.abortController.signal.aborted) throw new GameAborted();
+    // 发起提前刺杀后，组队和任务里不再开始新的调用
+    if (this.early !== null && this.phase === 'play') throw new EarlyAssassination();
   }
 
   private setActing(seat: number, action: ActionType, active: boolean): void {
@@ -264,7 +300,7 @@ export class Game {
 
   // ---------- 询问玩家 ----------
 
-  private ask(
+  private async ask(
     seat: number,
     action: ActionType,
     ctx: ActionContext,
@@ -272,9 +308,18 @@ export class Game {
     fallback: () => ActionSubmission,
     extra: Partial<HumanRequest> = {},
   ): Promise<ActionSubmission> {
-    return this.isHuman(seat)
+    const task = this.isHuman(seat)
       ? this.askHuman(seat, action, ctx, validate, extra)
       : this.askAI(seat, action, ctx, validate, fallback);
+    this.inflight.add(task);
+    try {
+      const out = await task;
+      if (this.isEarlyAssassination(seat, action, out)) this.declareEarly(seat, out);
+      this.checkAborted(); // 等待期间刺客发起了提前刺杀，这次的结果作废
+      return out;
+    } finally {
+      this.inflight.delete(task);
+    }
   }
 
   private async askHuman(
@@ -286,6 +331,7 @@ export class Game {
   ): Promise<ActionSubmission> {
     this.checkAborted();
     const request: HumanRequest = { id: randomUUID(), seat, action, ...ctx, ...extra };
+    if (this.canAssassinateEarly(seat)) request.canAssassinate = true;
     this.setActing(seat, action, true);
     try {
       const out = await new Promise<ActionSubmission>((resolve, reject) => {
@@ -347,7 +393,11 @@ export class Game {
       if (res.thinking) this.emit({ type: 'thought', seat, action, summary: res.thinking }, SPECTATOR);
 
       const out = res.output;
-      const error = out.action !== action ? `本次需要的 action 是 ${action}，你提交的是 ${out.action}` : validate(out);
+      const error = this.isEarlyAssassination(seat, action, out)
+        ? this.earlyTargetError(seat, out)
+        : out.action !== action
+          ? `本次需要的 action 是 ${action}，你提交的是 ${out.action}`
+          : validate(out);
       if (!error) {
         if (out.speech !== undefined) out.speech = sanitizeSpeech(out.speech).slice(0, MAX_SPEECH_CHARS);
         return out;
@@ -401,6 +451,18 @@ export class Game {
       this.emit({ type: 'role_assigned', seat, role: roles[seat], knowledge: text, marks }, only(seat));
     }
 
+    try {
+      return await this.playMissions();
+    } catch (err) {
+      if (this.early === null || this.abortController.signal.aborted) throw err;
+      // 等还在思考的 AI 做完再结算，之后它们还要被问话，同一个 AI 会话不能同时有两个调用
+      await Promise.allSettled([...this.inflight]);
+      return this.earlyAssassination(this.early);
+    }
+  }
+
+  private async playMissions(): Promise<Team> {
+    const { firstLeader } = this.record;
     let leader = firstLeader;
     let successes = 0;
     let failures = 0;
@@ -513,7 +575,9 @@ export class Game {
     return success;
   }
 
+  // 正义方完成 3 个任务后进入刺杀：邪恶方亮明身份并讨论，最后由刺客决定
   private async assassination(): Promise<Team> {
+    this.phase = 'assassination';
     const { roles } = this.record;
     const evil = this.seatsFrom(1)
       .filter((s) => isEvil(roles[s]))
@@ -537,23 +601,37 @@ export class Game {
       'assassinate',
       {},
       (o) => {
-        if (!(o.speech && o.speech.trim())) return '缺少 speech';
         if (o.target === undefined) return '缺少 target';
         if (!goodSeats.includes(o.target)) return `target 必须是正义方玩家的座位号（${goodSeats.join('、')}）`;
         return null;
       },
-      () => ({ action: 'assassinate', speech: '（沉默）', target: goodSeats[Math.floor(Math.random() * goodSeats.length)] }),
+      () => ({ action: 'assassinate', target: goodSeats[Math.floor(Math.random() * goodSeats.length)] }),
       { targets: goodSeats },
     );
-    this.emit({ type: 'speech', seat: assassin, kind: 'assassinate', text: decision.speech! }, PUBLIC);
+    // 刺杀宣言可选
+    if (decision.speech?.trim()) this.emit({ type: 'speech', seat: assassin, kind: 'assassinate', text: decision.speech }, PUBLIC);
 
-    const target = decision.target!;
-    const hit = roles[target] === 'merlin';
-    this.emit({ type: 'assassination', assassin, target, targetRole: roles[target], hit }, PUBLIC);
-    return hit ? this.finish('evil', `刺客刺中了梅林（${target}号）`) : this.finish('good', `刺客刺杀 ${target}号 失败，梅林幸存`);
+    return this.settleAssassination(assassin, decision.target!, '');
+  }
+
+  // 刺客提前发起刺杀：只亮明刺客身份，不讨论，直接按刺客选的目标结算
+  private earlyAssassination({ seat, target, speech }: { seat: number; target: number; speech?: string }): Team {
+    this.phase = 'assassination';
+    this.emit({ type: 'assassination_start', evil: [{ seat, role: 'assassin' }], declaredBy: seat }, PUBLIC);
+    if (speech?.trim()) this.emit({ type: 'speech', seat, kind: 'assassinate', text: speech }, PUBLIC);
+    return this.settleAssassination(seat, target, '提前刺杀：');
+  }
+
+  private settleAssassination(assassin: number, target: number, prefix: string): Team {
+    const hit = this.record.roles[target] === 'merlin';
+    this.emit({ type: 'assassination', assassin, target, targetRole: this.record.roles[target], hit }, PUBLIC);
+    return hit
+      ? this.finish('evil', `${prefix}刺客刺中了梅林（${target}号）`)
+      : this.finish('good', `${prefix}刺客刺杀 ${target}号 失败，梅林幸存`);
   }
 
   private finish(winner: Team, reason: string): Team {
+    this.phase = 'over';
     this.emit({ type: 'game_over', winner, reason, roles: this.record.roles }, PUBLIC);
     return winner;
   }

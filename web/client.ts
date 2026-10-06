@@ -17,6 +17,7 @@ export const api = {
   act: (id: string, token: string, submission: ActionSubmission) =>
     request<{ ok: true }>(`/api/games/${id}/act`, { method: 'POST', body: JSON.stringify({ token, submission }) }),
   deleteGame: (id: string) => request<{ ok: true; sessions: number }>(`/api/games/${id}`, { method: 'DELETE' }),
+  deleteAllGames: () => request<{ ok: true; deleted: string[]; sessions: number }>('/api/games', { method: 'DELETE' }),
   startPostgame: (id: string, token?: string) =>
     request<{ ok: true }>(`/api/games/${id}/postgame`, { method: 'POST', body: JSON.stringify({ token }) }),
   stop: (id: string, token?: string) =>

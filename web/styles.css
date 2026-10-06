@@ -212,6 +212,12 @@ textarea {
   margin: 0 0 14px;
   font-size: 16px;
 }
+.card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
 .mode-switch {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -1099,6 +1105,19 @@ textarea {
 }
 .hint {
   font-size: 12px;
+}
+.action-row.early {
+  border-top: 1px dashed var(--line);
+  padding-top: 10px;
+}
+.action-panel button.assassinate {
+  background: transparent;
+  border-color: var(--evil);
+  color: var(--evil);
+  font-weight: 600;
+}
+.action-panel button.assassinate:hover:not(:disabled) {
+  background: var(--evil-soft);
 }
 .seat-picks {
   display: flex;

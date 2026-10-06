@@ -146,7 +146,7 @@ export function roleSight(role: Role, setup: Role[]): string {
     case 'loyal':
       return '没有夜晚信息';
     case 'assassin':
-      return `${mates}；游戏最后由他刺杀梅林`;
+      return `${mates}；游戏最后由他刺杀梅林，也可以在轮到自己行动时提前发起刺杀`;
     case 'morgana':
       return has('percival') ? `${mates}；在派西维尔眼里像梅林` : mates;
     case 'mordred':

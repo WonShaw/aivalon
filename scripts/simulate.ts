@@ -21,12 +21,13 @@ function answer(r: HumanRequest, players: number): ActionSubmission {
     case 'vote': return { action: r.action, vote: Math.random() < 0.6 ? 'approve' : 'reject' };
     case 'mission': return { action: r.action, mission_card: r.canFail && Math.random() < 0.5 ? 'fail' : 'success' };
     case 'evil_discuss': return { action: r.action, speech: '讨论' };
-    case 'assassinate': return { action: r.action, speech: '刺杀', target: pick(r.targets!) };
+    case 'assassinate': return { action: r.action, ...(Math.random() < 0.5 ? { speech: '刺杀' } : {}), target: pick(r.targets!) }; // 刺杀宣言可选
     case 'reflect': return { action: r.action, speech: r.seat % 3 === 0 ? '' : '这局很好玩' }; // 每 3 个座位有一个跳过
   }
 }
 
-async function simulate(players: number, presetName: string, prefs: RolePreference[]): Promise<void> {
+// early：从第几个行动请求起，轮到刺客时由他发起提前刺杀
+async function simulate(players: number, presetName: string, prefs: RolePreference[], early?: number): Promise<void> {
   const setup = buildSetup(PRESETS[players].find((p) => p.name === presetName)!.options);
   const humans = prefs.map((role, i) => ({ name: `玩家${i + 1}`, role }));
   const game = Game.create(store, { humans, setup });
@@ -44,22 +45,57 @@ async function simulate(players: number, presetName: string, prefs: RolePreferen
   if (humanSeats.length !== prefs.length) throw new Error('wrong human count');
 
   const seen: Record<number, string[]> = {};
+  let requests = 0;
+  let declarer: number | null = null;
+  const cancelled = new Set<string>(); // 提前刺杀时被取消的请求
   game.bus.on('message', (msg: StreamMessage) => {
     for (let seat = 1; seat <= players; seat++) {
       if (messageVisible(msg, { kind: 'player', seat }) && msg.kind === 'event') (seen[seat] ??= []).push(msg.event.type);
     }
+    if (msg.kind === 'request_done' && declarer !== null) cancelled.add(msg.id);
     if (msg.kind !== 'request') return;
     const r = msg.request;
+    // 只有刺客在组队和任务阶段的请求可以改为提前刺杀
+    const playAction = !['evil_discuss', 'assassinate', 'reflect'].includes(r.action);
+    if (!!r.canAssassinate !== (roles[r.seat] === 'assassin' && playAction)) throw new Error(`canAssassinate wrong: ${roles[r.seat]} ${r.action}`);
+    const declare = early !== undefined && ++requests >= early && declarer === null && r.canAssassinate;
     setTimeout(() => {
+      if (declare) {
+        const other = humanSeats.find((s) => s !== r.seat && game.pendingRequestFor(s));
+        if (other && !game.submitHuman(other, { action: 'assassinate', target: r.seat })) throw new Error('non-assassin assassinated early');
+        if (!game.submitHuman(r.seat, { action: 'assassinate', target: r.seat })) throw new Error('assassin targeted self');
+        declarer = r.seat;
+        const target = pick(humanSeats.filter((s) => s !== r.seat));
+        const err = game.submitHuman(r.seat, { action: 'assassinate', target, ...(Math.random() < 0.5 ? { speech: '就是你' } : {}) });
+        if (err) throw new Error(`early assassination rejected: ${err}`);
+        return;
+      }
       if (r.action === 'mission' && !r.canFail && !game.submitHuman(r.seat, { action: 'mission', mission_card: 'fail' })) {
         throw new Error('good player was allowed to fail');
       }
       const err = game.submitHuman(r.seat, answer(r, players));
-      if (err) throw new Error(`rejected valid answer: ${err}`);
+      if (err && !cancelled.has(r.id)) throw new Error(`rejected valid answer: ${err}`);
     }, 1);
   });
 
   await game.run();
+
+  // 提前刺杀：只亮明刺客，没有组队、投票、任务结果和刺杀讨论，直接结算
+  if (declarer !== null) {
+    const start = game.events.findIndex((e) => e.type === 'assassination_start');
+    const e = game.events[start];
+    if (e?.type !== 'assassination_start' || e.declaredBy !== declarer || e.evil.length !== 1) throw new Error('early assassination did not start');
+    const after = game.events.slice(start);
+    const types = after.map((x) => x.type);
+    if (types.some((t) => t === 'round_start' || t === 'team_vote' || t === 'mission_result' || t === 'team_proposed')) {
+      throw new Error(`game continued after early assassination: ${types.join(',')}`);
+    }
+    if (after.some((x) => x.type === 'speech' && x.kind === 'assassin_discuss')) throw new Error('early assassination had a discussion');
+    const over = after.find((x) => x.type === 'game_over');
+    if (!types.includes('assassination') || over?.type !== 'game_over' || !over.reason.startsWith('提前刺杀')) {
+      throw new Error('early assassination did not finish');
+    }
+  }
 
   // 赛后交流：只能在正常结束后开一次；跳过的人没有发言事件
   if (game.record.status === 'finished') {
@@ -96,6 +132,10 @@ await simulate(8, '入门', ['minion', 'minion', 'loyal', 'loyal', ...randoms(4)
 await simulate(10, '标准', ['oberon', 'mordred', 'morgana', 'assassin', 'percival', ...randoms(5)]);
 await simulate(10, '不含奥伯伦', ['evil', 'evil', 'evil', 'evil', ...randoms(6)]);
 await simulate(10, '入门', ['minion', 'minion', 'minion', 'loyal', 'loyal', 'loyal', 'loyal', 'loyal', ...randoms(2)]);
+
+// 提前刺杀：刺客在不同时机发起（提名、发言、投票、出任务牌……）
+for (const at of [1, 3, 9, 12, 20, 35]) await simulate(8, '标准', randoms(8), at);
+await simulate(10, '标准', randoms(10), 14);
 
 // 不可满足的偏好要报错
 try {

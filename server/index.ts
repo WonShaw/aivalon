@@ -168,20 +168,37 @@ async function act(req: IncomingMessage, res: ServerResponse, id: string): Promi
   json(res, 200, { ok: true });
 }
 
-// 删除一局：对局记录和这局所有 AI 的会话记录。进行中的对局不能删
-async function deleteGame(res: ServerResponse, id: string): Promise<void> {
-  const loaded = games.get(id);
-  if (loaded && isBusy(loaded)) return json(res, 409, { error: '进行中的对局不能删除，请先结束对局' });
-  const record = games.get(id)?.record ?? store.loadRecord(id);
-  if (!record) return json(res, 404, { error: '对局不存在' });
-
+// 删除一局的对局记录和这局所有 AI 的会话记录，返回删掉的会话数
+async function removeGame(record: GameRecord): Promise<number> {
   let sessions = 0;
   for (const sessionId of Object.values(record.sessions ?? {})) {
     if (sessionId && (await deleteAISession(sessionId))) sessions++;
   }
-  store.deleteGame(id);
-  games.delete(id);
-  json(res, 200, { ok: true, sessions });
+  store.deleteGame(record.id);
+  games.delete(record.id);
+  return sessions;
+}
+
+// 删除一局。进行中的对局不能删
+async function deleteGame(res: ServerResponse, id: string): Promise<void> {
+  const loaded = games.get(id);
+  if (loaded && isBusy(loaded)) return json(res, 409, { error: '进行中的对局不能删除，请先结束对局' });
+  const record = loaded?.record ?? store.loadRecord(id);
+  if (!record) return json(res, 404, { error: '对局不存在' });
+  json(res, 200, { ok: true, sessions: await removeGame(record) });
+}
+
+// 删除全部对局，进行中的（包括正在赛后交流的）保留
+async function deleteAllGames(res: ServerResponse): Promise<void> {
+  const deleted: string[] = [];
+  let sessions = 0;
+  for (const r of store.listRecords()) {
+    const loaded = games.get(r.id);
+    if (loaded && isBusy(loaded)) continue;
+    sessions += await removeGame(loaded?.record ?? r);
+    deleted.push(r.id);
+  }
+  json(res, 200, { ok: true, deleted, sessions });
 }
 
 // 开启赛后交流：全 AI 对局谁都可以开，有人类的对局需要玩家凭证
@@ -241,6 +258,7 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
     return json(res, 200, store.listRecords().map((r) => games.get(r.id)?.summary() ?? recordSummary(r)));
   }
   if (path === '/api/games' && req.method === 'POST') return createGame(req, res);
+  if (path === '/api/games' && req.method === 'DELETE') return deleteAllGames(res);
 
   const del = /^\/api\/games\/([\w-]+)$/.exec(path);
   if (del && req.method === 'DELETE') return deleteGame(res, del[1]);

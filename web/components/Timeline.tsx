@@ -182,14 +182,22 @@ export function Timeline(props: Props) {
       case 'assassination_start':
         return (
           <div className="banner evil">
-            正义方完成 3 个任务，进入刺杀阶段
+            {e.declaredBy
+              ? `${e.declaredBy}号 ${name(e.declaredBy)} 亮明刺客身份，发起提前刺杀！`
+              : '正义方完成 3 个任务，进入刺杀阶段'}
             <div className="banner-sub">
-              邪恶方亮明身份：
-              {e.evil.map((x) => (
-                <span key={x.seat} className="badge small evil">
-                  {x.seat}号 {name(x.seat)} · {roleLabel(x.role)}
-                </span>
-              ))}
+              {e.declaredBy ? (
+                '当前的组队和任务作废，由刺客直接选择刺杀目标'
+              ) : (
+                <>
+                  邪恶方亮明身份：
+                  {e.evil.map((x) => (
+                    <span key={x.seat} className="badge small evil">
+                      {x.seat}号 {name(x.seat)} · {roleLabel(x.role)}
+                    </span>
+                  ))}
+                </>
+              )}
             </div>
           </div>
         );

@@ -156,6 +156,25 @@ export function Lobby({ onOpen, onCreated, created }: Props) {
     }
   };
 
+  // 删除全部：进行中的对局（包括正在赛后交流的）保留
+  const [deletingAll, setDeletingAll] = useState(false);
+  const deletable = games.filter((g) => g.status !== 'running' && g.postgame !== 'running');
+  const removeAll = async () => {
+    const kept = games.length - deletable.length;
+    const note = kept ? `\n进行中的 ${kept} 局会保留。` : '';
+    if (!confirm(`删除全部 ${deletable.length} 局对局记录？\n对局记录和 AI 的会话记录都会被删除，无法恢复。${note}`)) return;
+    setDeletingAll(true);
+    try {
+      const { deleted } = await api.deleteAllGames();
+      deleted.forEach(forgetGame);
+      setGames((list) => list.filter((x) => !deleted.includes(x.id)));
+    } catch (e) {
+      alert(e instanceof Error ? e.message : String(e));
+    } finally {
+      setDeletingAll(false);
+    }
+  };
+
   const nameError = mode === 'human' ? validateHumanNames(humans.map((h) => h.name)) : null;
   const running = games.find((g) => g.status === 'running');
   const sameOptions = (a: SetupOptions) => buildSetup(a).join() === setup.join();
@@ -293,7 +312,14 @@ export function Lobby({ onOpen, onCreated, created }: Props) {
       </section>
 
       <section className="card">
-        <h2>对局记录</h2>
+        <div className="card-head">
+          <h2>对局记录</h2>
+          {deletable.length > 0 && (
+            <button className="ghost danger" disabled={deletingAll} onClick={removeAll} title="删除全部对局记录和 AI 会话记录">
+              {deletingAll ? '删除中…' : '全部删除'}
+            </button>
+          )}
+        </div>
         {games.length === 0 && <div className="muted">还没有对局。</div>}
         <div className="game-list">
           {games.map((g) => {
