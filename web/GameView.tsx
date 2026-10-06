@@ -52,6 +52,7 @@ export function GameView({ gameId, token, onBack, onCreated }: Props) {
   const [showThoughts, setShowThoughts] = usePersistentToggle('aivalon.thoughts', false);
 
   const isSpectator = viewer?.kind === 'spectator';
+  const thoughtsAvailable = isSpectator || summary?.status === 'finished'; // 对局结束后玩家也能看思考摘要
   const players = summary?.players ?? [];
   const mySeat = viewer?.kind === 'player' ? viewer.seat : null;
   const roles = visibleRoles(board, viewer, godView);
@@ -125,16 +126,16 @@ export function GameView({ gameId, token, onBack, onCreated }: Props) {
         </span>
         <div className="spacer" />
         {isSpectator && (
-          <>
-            <label className="toggle">
-              <input type="checkbox" checked={godView} onChange={(e) => setGodView(e.target.checked)} />
-              上帝视角
-            </label>
-            <label className="toggle">
-              <input type="checkbox" checked={showThoughts} onChange={(e) => setShowThoughts(e.target.checked)} />
-              思考摘要
-            </label>
-          </>
+          <label className="toggle">
+            <input type="checkbox" checked={godView} onChange={(e) => setGodView(e.target.checked)} />
+            上帝视角
+          </label>
+        )}
+        {thoughtsAvailable && (
+          <label className="toggle">
+            <input type="checkbox" checked={showThoughts} onChange={(e) => setShowThoughts(e.target.checked)} />
+            思考摘要
+          </label>
         )}
         {summary?.status === 'running' && (
           <button className="ghost danger" onClick={stop}>

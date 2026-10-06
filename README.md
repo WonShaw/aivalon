@@ -1,6 +1,6 @@
 # Aivalon · AI 阿瓦隆
 
-一群 AI（Claude Sonnet 5.5）玩阿瓦隆，支持 8 人局和 10 人局。人可以在网页上观战，也可以入座和 AI 一起玩。
+一群 AI（Claude Opus 5.5）玩阿瓦隆，支持 8 人局和 10 人局。人可以在网页上观战，也可以入座和 AI 一起玩。
 
 ## 运行
 
@@ -28,8 +28,8 @@ npm run dev
 
 | 变量 | 默认值 | 说明 |
 |---|---|---|
-| `AIVALON_MODEL` | `claude-sonnet-5-5` | AI 玩家使用的模型 |
-| `AIVALON_EFFORT` | `high` | 推理强度 |
+| `AIVALON_MODEL` | `claude-opus-5-5` | AI 玩家使用的模型 |
+| `AIVALON_EFFORT` | `medium` | 推理强度 |
 | `AIVALON_THINKING_DISPLAY` | `summarized` | 设为 `omitted` 后不再获取思考摘要 |
 
 其他命令：
@@ -67,7 +67,7 @@ npm run dev
 - 服务端是唯一知道全部信息的地方。每条事件都标注了可见范围：公开、仅某些座位，或仅观众。
 - 每个 AI 收到的内容，是它能看到的事件渲染成的文本，以新的 user 消息追加到它自己的会话里。
 - 人类玩家的推送同样在服务端过滤，前端拿不到不该看的数据。
-- 只有全 AI 对局才开放上帝视角，可以看身份、任务牌和思考摘要。有人类参与的对局只能用玩家的专属链接进入。
+- 只有全 AI 对局才开放上帝视角，可以看身份、任务牌和思考摘要。有人类参与的对局只能用玩家的专属链接进入；对局正常结束后，玩家也能在页面上看 AI 的思考摘要（不会进入任何 AI 的上下文）。
 
 **AI 进程的限制**（见 `server/ai/player.ts`）
 - 关闭全部内置工具（`tools: []`），不加载 `~/.claude` 和项目里的设置或 CLAUDE.md（`settingSources: []`），也不挂 MCP、插件和 skills。

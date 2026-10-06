@@ -124,7 +124,8 @@ export function Timeline(props: Props) {
         );
       }
       case 'thought':
-        if (!isSpectator || !showThoughts) return null;
+        // 服务端只在允许时推送思考摘要：全 AI 对局的观众，或对局结束后的玩家
+        if (!showThoughts) return null;
         return (
           <div className="thought">
             <div className="thought-head">

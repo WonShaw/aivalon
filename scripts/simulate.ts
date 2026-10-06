@@ -163,6 +163,24 @@ try {
 } catch (e) {
   console.log('duplicate pick rejected:', (e as Error).message);
 }
+// 思考摘要：对局进行中只推给观众；正常结束后玩家也能看到。任务牌结束后仍然只给观众
+{
+  const spectatorOnly = { kind: 'spectator' } as const;
+  const thought: StreamMessage = {
+    kind: 'event',
+    event: { type: 'thought', seat: 2, action: 'speak', summary: '…', seq: 1, ts: 0, visibility: spectatorOnly },
+  };
+  const cards: StreamMessage = {
+    kind: 'event',
+    event: { type: 'mission_cards', mission: 1, cards: { 2: 'fail' }, seq: 2, ts: 0, visibility: spectatorOnly },
+  };
+  const player = { kind: 'player', seat: 1 } as const;
+  if (messageVisible(thought, player) || !messageVisible(thought, player, true) || messageVisible(cards, player, true)) {
+    throw new Error('thought visibility wrong');
+  }
+  console.log('thought visibility ok');
+}
+
 // 赛后交流中断、且事件文件最后一行被写坏：恢复不能抛错（否则服务起不来），状态仍要收尾，这局才能删除
 {
   const record = store.listRecords().find((r) => r.status === 'finished')!;

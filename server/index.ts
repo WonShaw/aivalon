@@ -91,25 +91,40 @@ function stream(req: IncomingMessage, res: ServerResponse, id: string, token: st
     'Cache-Control': 'no-cache',
     Connection: 'keep-alive',
   });
+  // 对局正常结束后，玩家也能在网页上看到 AI 的思考摘要（观众一直能看到）
+  const isOver = () => game.record.status === 'finished';
+  let thoughtsVisible = viewer.kind === 'spectator' || isOver();
   const send = (msg: StreamMessage) => {
-    if (messageVisible(msg, viewer)) res.write(`data: ${JSON.stringify(msg)}\n\n`);
+    if (messageVisible(msg, viewer, thoughtsVisible)) res.write(`data: ${JSON.stringify(msg)}\n\n`);
   };
 
-  send({ kind: 'hello', viewer });
-  send({ kind: 'game', summary: game.summary() });
-  for (const event of game.events) send({ kind: 'event', event });
+  // 推送完整的当前状态；前端收到 hello 会先清空再接收
+  const sendAll = () => {
+    send({ kind: 'hello', viewer });
+    send({ kind: 'game', summary: game.summary() });
+    for (const event of game.events) send({ kind: 'event', event });
 
-  for (const { seat, action } of game.actingNow()) send({ kind: 'status', seat, action, active: true });
-  if (viewer.kind === 'player') {
-    const pending = game.pendingRequestFor(viewer.seat);
-    if (pending) send({ kind: 'request', request: pending });
-  }
+    for (const { seat, action } of game.actingNow()) send({ kind: 'status', seat, action, active: true });
+    if (viewer.kind === 'player') {
+      const pending = game.pendingRequestFor(viewer.seat);
+      if (pending) send({ kind: 'request', request: pending });
+    }
+  };
+  sendAll();
 
-  game.bus.on('message', send);
+  // 对局刚结束时重推一遍，之前没推给玩家的思考摘要不用刷新页面也能看到
+  const onMessage = (msg: StreamMessage) => {
+    if (!thoughtsVisible && isOver()) {
+      thoughtsVisible = true;
+      return sendAll();
+    }
+    send(msg);
+  };
+  game.bus.on('message', onMessage);
   const heartbeat = setInterval(() => res.write(': ping\n\n'), 15000);
   req.on('close', () => {
     clearInterval(heartbeat);
-    game.bus.off('message', send);
+    game.bus.off('message', onMessage);
   });
 }
 
