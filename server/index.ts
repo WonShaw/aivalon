@@ -23,13 +23,8 @@ const WEB_DIST = join(import.meta.dirname, '..', 'dist', 'web');
 const store = new GameStore();
 const games = new Map<string, Game>(); // 本次进程里创建的对局
 
-// 进程重启后，之前没跑完的对局已无法继续，标记为中止
-for (const record of store.listRecords()) {
-  if (record.status === 'running') {
-    record.status = 'aborted';
-    store.saveRecord(record);
-  }
-}
+// 进程重启后，之前没跑完的对局和赛后交流已无法继续，收尾
+Game.recoverInterrupted(store);
 
 function recordSummary(r: GameRecord): GameSummary {
   return {

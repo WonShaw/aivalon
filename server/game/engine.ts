@@ -134,6 +134,22 @@ export class Game {
     return game;
   }
 
+  // 进程重启后，没跑完的对局和赛后交流都无法继续：对局标记为中止，赛后交流补上结束事件并标记为结束
+  static recoverInterrupted(store: GameStore): void {
+    for (const record of store.listRecords()) {
+      if (record.status === 'running') {
+        record.status = 'aborted';
+        store.saveRecord(record);
+      }
+      if (record.postgame === 'running') {
+        const seq = store.loadEvents(record.id).length + 1;
+        store.appendEvent(record.id, { type: 'postgame_end', seq, ts: Date.now(), visibility: PUBLIC });
+        record.postgame = 'done';
+        store.saveRecord(record);
+      }
+    }
+  }
+
   private constructor(
     readonly record: GameRecord,
     private readonly store: GameStore,

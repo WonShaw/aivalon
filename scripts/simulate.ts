@@ -1,5 +1,5 @@
 // 不调用模型，用 8 个脚本"人类"随机行动跑完整局，检查状态机、身份分配和信息可见性
-import { mkdtempSync } from 'node:fs';
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { PRESETS, buildSetup } from '../shared/setup.ts';
@@ -8,7 +8,8 @@ import { Game } from '../server/game/engine.ts';
 import { GameStore } from '../server/game/store.ts';
 import { messageVisible } from '../server/game/visibility.ts';
 
-const store = new GameStore(mkdtempSync(join(tmpdir(), 'aivalon-sim-')));
+const dir = mkdtempSync(join(tmpdir(), 'aivalon-sim-'));
+const store = new GameStore(dir);
 const pick = <T,>(a: T[]) => a[Math.floor(Math.random() * a.length)];
 
 function answer(r: HumanRequest, players: number): ActionSubmission {
@@ -112,6 +113,24 @@ async function simulate(players: number, presetName: string, prefs: RolePreferen
     // 从磁盘恢复后，事件和状态都要一致
     const loaded = Game.load(store, game.id)!;
     if (loaded.events.length !== game.events.length || loaded.summary().postgame !== 'done') throw new Error('load mismatch');
+
+    // 赛后交流中途进程被停掉：磁盘上 postgame=running 且没有 postgame_end。重启后应当收尾，不再卡住
+    const record = store.loadRecord(game.id)!;
+    record.postgame = 'running';
+    store.saveRecord(record);
+    const file = join(dir, game.id, 'events.jsonl');
+    writeFileSync(file, readFileSync(file, 'utf8').trimEnd().split('\n').slice(0, -1).join('\n') + '\n');
+    Game.recoverInterrupted(store);
+    const recovered = Game.load(store, game.id)!;
+    if (
+      recovered.summary().postgame !== 'done' ||
+      recovered.canStartPostgame() ||
+      recovered.events.length !== game.events.length ||
+      recovered.events.at(-1)?.type !== 'postgame_end' ||
+      recovered.events.at(-1)?.seq !== game.events.at(-1)?.seq
+    ) {
+      throw new Error('interrupted postgame was not recovered');
+    }
   }
 
   for (let seat = 1; seat <= players; seat++) {
