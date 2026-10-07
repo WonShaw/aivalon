@@ -219,7 +219,7 @@ async function startPostgame(req: IncomingMessage, res: ServerResponse, id: stri
   if (game.hasHumans && (!body.token || game.seatForToken(body.token) === null)) {
     return json(res, 403, { error: '只有参与这局的玩家可以开启赛后交流' });
   }
-  if (!game.canStartPostgame()) return json(res, 409, { error: '只有正常结束、还没开过赛后交流的对局才能开启' });
+  if (!game.canStartPostgame()) return json(res, 409, { error: '只有正常结束的对局才能开启赛后交流，并且上一轮要先结束' });
   const busy = runningGame();
   if (busy) return json(res, 409, { error: '已有一局正在进行，结束后再开启赛后交流', id: busy.id });
   void game.runPostgame();

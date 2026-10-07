@@ -88,8 +88,8 @@ export type GameEventBody =
       reason: string;
       roles: Record<number, Role>;
     }
-  // 赛后交流：游戏结束后由玩家手动开启，每人发言一次
-  | { type: 'postgame_start' }
+  // 赛后交流：游戏结束后由玩家手动开启，每轮每人发言一次，可以开多轮。旧记录里没有 round，视为第 1 轮
+  | { type: 'postgame_start'; round?: number }
   | { type: 'postgame_end' }
   // 以下仅观众可见
   | { type: 'thought'; seat: number; action: ActionType; summary: string }

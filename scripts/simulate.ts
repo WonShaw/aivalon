@@ -98,16 +98,17 @@ async function simulate(players: number, presetName: string, prefs: RolePreferen
     }
   }
 
-  // 赛后交流：只能在正常结束后开一次；跳过的人没有发言事件
+  // 赛后交流：只能在正常结束后开启，一轮结束后可以再开一轮；跳过的人没有发言事件
   if (game.record.status === 'finished') {
-    if (!game.canStartPostgame()) throw new Error('postgame should be available');
-    await game.runPostgame();
-    if (game.canStartPostgame()) throw new Error('postgame should not start twice');
-    const start = game.events.findIndex((e) => e.type === 'postgame_start');
+    for (let round = 1; round <= 2; round++) {
+      if (!game.canStartPostgame()) throw new Error(`postgame round ${round} should be available`);
+      await game.runPostgame();
+    }
+    const starts = game.events.flatMap((e) => (e.type === 'postgame_start' ? [e.round] : []));
     const reflects = game.events.filter((e) => e.type === 'speech' && e.kind === 'reflect').length;
-    const expected = Array.from({ length: players }, (_, i) => i + 1).filter((s) => s % 3 !== 0).length;
-    if (start < 0 || game.events.at(-1)?.type !== 'postgame_end' || reflects !== expected) {
-      throw new Error(`postgame wrong: start=${start} reflects=${reflects}/${expected}`);
+    const expected = 2 * Array.from({ length: players }, (_, i) => i + 1).filter((s) => s % 3 !== 0).length;
+    if (starts.join() !== '1,2' || game.events.at(-1)?.type !== 'postgame_end' || reflects !== expected) {
+      throw new Error(`postgame wrong: rounds=${starts.join()} reflects=${reflects}/${expected}`);
     }
     if (game.summary().postgame !== 'done') throw new Error('postgame status not done');
     // 从磁盘恢复后，事件和状态都要一致
@@ -124,7 +125,7 @@ async function simulate(players: number, presetName: string, prefs: RolePreferen
     const recovered = Game.load(store, game.id)!;
     if (
       recovered.summary().postgame !== 'done' ||
-      recovered.canStartPostgame() ||
+      !recovered.canStartPostgame() ||
       recovered.events.length !== game.events.length ||
       recovered.events.at(-1)?.type !== 'postgame_end' ||
       recovered.events.at(-1)?.seq !== game.events.at(-1)?.seq

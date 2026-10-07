@@ -126,6 +126,8 @@ export function renderEvent(e: GameEvent, ctx: RenderContext): string | null {
       const list = e.evil.map((x) => `${who(x.seat)} = ${ROLE_NAME[x.role]}`).join('，');
       return `【裁判】正义方已完成 3 个任务！进入刺杀阶段。邪恶方公开身份：${list}。邪恶方可以公开讨论，正义方不能发言，最后由刺客决定刺杀目标。`;
     }
+    case 'postgame_start':
+      return `【裁判】—— 赛后交流第 ${e.round ?? 1} 轮 ——`;
     default:
       return null;
   }
@@ -138,6 +140,7 @@ export interface ActionContext {
   teamSize?: number;
   team?: number[];
   recap?: string; // 赛后交流：本局结果和全部身份
+  round?: number; // 赛后交流：第几轮
 }
 
 function baseInstruction(action: ActionType, c: ActionContext): string {
@@ -159,6 +162,13 @@ function baseInstruction(action: ActionType, c: ActionContext): string {
     case 'assassinate':
       return `【裁判】你是刺客，请做出最终决定（action=assassinate）：target 填你认为是梅林的座位号（必须是正义方玩家）；speech 可选，可以简短宣布，也可以不写。`;
     case 'reflect':
+      if ((c.round ?? 1) > 1) {
+        return [
+          `【裁判】游戏已经结束。${c.recap ?? ''}`,
+          `现在是第 ${c.round} 轮赛后交流，大家按座位顺序再各发言一次（action=reflect）。`,
+          `可以回应其他人前面说的话，也可以补充你还想聊的内容，同样口语化一些。`,
+        ].join('\n');
+      }
       return [
         `【裁判】游戏已经结束。${c.recap ?? ''}`,
         `现在是赛后交流时间，所有身份都已公开，大家按座位顺序各发言一次（action=reflect）。`,

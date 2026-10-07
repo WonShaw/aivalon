@@ -223,7 +223,11 @@ export function Timeline(props: Props) {
           </div>
         );
       case 'postgame_start':
-        return <div className="round-head">赛后交流 · 每人发言一次</div>;
+        return (
+          <div className="round-head">
+            赛后交流{(e.round ?? 1) > 1 && ` · 第 ${e.round} 轮`} · 每人发言一次
+          </div>
+        );
       case 'postgame_end':
         return <div className="divider">赛后交流结束</div>;
       case 'ai_error':

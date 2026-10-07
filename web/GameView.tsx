@@ -84,10 +84,11 @@ export function GameView({ gameId, token, onBack, onCreated }: Props) {
     </button>
   );
 
-  // 赛后交流：正常结束的对局可以手动开启一次；全 AI 对局观众可开，有人类的对局由玩家开
+  // 赛后交流：正常结束的对局可以手动开启，一轮结束后还能再开一轮；全 AI 对局观众可开，有人类的对局由玩家开
   const [startingPostgame, setStartingPostgame] = useState(false);
   const canStartPostgame =
-    summary?.status === 'finished' && summary.postgame === 'none' && (isSpectator || !!token);
+    summary?.status === 'finished' && summary.postgame !== 'running' && (isSpectator || !!token);
+  const postgameAgain = summary?.postgame === 'done';
   const startPostgame = async () => {
     setStartingPostgame(true);
     try {
@@ -99,8 +100,12 @@ export function GameView({ gameId, token, onBack, onCreated }: Props) {
     }
   };
   const postgameButton = canStartPostgame && (
-    <button disabled={startingPostgame} onClick={startPostgame} title="每位玩家再发言一次，聊聊这局的感想">
-      {startingPostgame ? '开启中…' : '赛后聊聊'}
+    <button
+      disabled={startingPostgame}
+      onClick={startPostgame}
+      title={postgameAgain ? '每位玩家按座位顺序再发言一次' : '每位玩家再发言一次，聊聊这局的感想'}
+    >
+      {startingPostgame ? '开启中…' : postgameAgain ? '再聊一轮' : '赛后聊聊'}
     </button>
   );
 

@@ -659,9 +659,9 @@ export class Game {
 
   // ---------- 赛后交流 ----------
 
-  // 赛后交流只能在对局正常结束后开一次
+  // 赛后交流只能在对局正常结束后开启；一轮结束后可以再开一轮
   canStartPostgame(): boolean {
-    return this.record.status === 'finished' && (this.record.postgame ?? 'none') === 'none';
+    return this.record.status === 'finished' && this.record.postgame !== 'running';
   }
 
   private setPostgame(postgame: PostgameStatus): void {
@@ -681,12 +681,13 @@ export class Game {
     return `${over.winner === 'good' ? '正义方' : '邪恶方'}获胜（${over.reason}）。全部身份：${roles}。`;
   }
 
-  // 每人按座位顺序发言一次；人类可以跳过（提交空发言）
+  // 一轮赛后交流：每人按座位顺序发言一次；人类可以跳过（提交空发言）
   async runPostgame(): Promise<void> {
+    const round = this.events.filter((e) => e.type === 'postgame_start').length + 1;
     this.abortController = new AbortController();
     this.setPostgame('running');
-    this.emit({ type: 'postgame_start' }, PUBLIC);
-    const ctx: ActionContext = { recap: this.recap() };
+    this.emit({ type: 'postgame_start', round }, PUBLIC);
+    const ctx: ActionContext = { recap: this.recap(), round };
     try {
       for (const seat of this.seatsFrom(1)) {
         const human = this.isHuman(seat);
