@@ -84,7 +84,7 @@ function baseOptions(): Options {
 export interface ActResult {
   output: AIOutput;
   thinking: string;
-  costUsd: number;
+  sessionCostUsd: number; // 这个会话到目前为止的累计估算费用，SDK 续接会话时会带上之前的轮次
   durationMs: number;
   usage: { input: number; output: number; cacheRead: number; cacheWrite: number };
 }
@@ -162,7 +162,7 @@ export class AIPlayer {
       return {
         output: result.structured_output as AIOutput,
         thinking: thinking.join('\n\n'),
-        costUsd: result.total_cost_usd,
+        sessionCostUsd: result.total_cost_usd,
         durationMs: result.duration_ms,
         usage: {
           input: result.usage.input_tokens,

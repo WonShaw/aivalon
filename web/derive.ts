@@ -31,13 +31,15 @@ export function deriveBoard(events: GameEvent[], viewer: Viewer | null): BoardSt
     usage: { costUsd: 0, calls: 0, cacheRead: 0, cacheWrite: 0, input: 0, output: 0 },
   };
 
+  const sessionCost: Record<number, number> = {}; // 每个 AI 会话上一次报告的累计费用
+
   for (const e of events) {
     switch (e.type) {
       case 'game_start':
         s.leader = e.firstLeader;
         break;
       case 'role_assigned':
-        // 观众能看到所有人的身份；玩家只会收到自己的这一条
+        // 能看到全部信息的人会收到所有人的这一条；对局中的玩家只会收到自己的
         s.knownRoles[e.seat] = e.role;
         if (viewer?.kind === 'player' && viewer.seat === e.seat) s.myRole = { role: e.role, knowledge: e.knowledge, marks: e.marks };
         break;
@@ -69,20 +71,25 @@ export function deriveBoard(events: GameEvent[], viewer: Viewer | null): BoardSt
         Object.assign(s.knownRoles, e.roles);
         Object.assign(s.publicRoles, e.roles);
         break;
-      case 'ai_usage':
-        s.usage.costUsd += e.costUsd;
+      case 'ai_usage': {
+        // costUsd 是会话的累计值，这次调用的费用是和上一次的差值；变小说明累计值被重置了，按新值算
+        const prev = sessionCost[e.seat] ?? 0;
+        s.usage.costUsd += e.costUsd >= prev ? e.costUsd - prev : e.costUsd;
+        sessionCost[e.seat] = e.costUsd;
         s.usage.calls += 1;
         s.usage.cacheRead += e.cacheRead;
         s.usage.cacheWrite += e.cacheWrite;
         s.usage.input += e.input;
         s.usage.output += e.output;
         break;
+      }
     }
   }
   return s;
 }
 
-// 玩家收到的身份本来就只有自己的和已公开的；观众关掉上帝视角时只看已公开的
+// 对局中玩家收到的身份本来就只有自己的和已公开的；能看到全部信息的人关掉上帝视角时只看已公开的
+// （对局结束后所有身份都已公开，两者一样）
 export function visibleRoles(board: BoardState, viewer: Viewer | null, godView: boolean): Record<number, Role> {
   return viewer?.kind === 'player' || godView ? board.knownRoles : board.publicRoles;
 }

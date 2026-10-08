@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import type { CreateGameResponse, GameStatus } from '../shared/types.ts';
+import { seesEverything, type CreateGameResponse, type GameStatus } from '../shared/types.ts';
 import { api, createGame, loadRequest } from './client.ts';
 import { ActionPanel } from './components/ActionPanel.tsx';
 import { RoleGuide } from './components/RoleGuide.tsx';
@@ -49,10 +49,10 @@ export function GameView({ gameId, token, onBack, onCreated }: Props) {
   const { viewer, summary, events } = state;
   const board = useMemo(() => deriveBoard(events, viewer), [events, viewer]);
   const [godView, setGodView] = usePersistentToggle('aivalon.godView', true);
-  const [showThoughts, setShowThoughts] = usePersistentToggle('aivalon.thoughts', false);
 
   const isSpectator = viewer?.kind === 'spectator';
-  const thoughtsAvailable = isSpectator || summary?.status === 'finished'; // 对局结束后玩家也能看思考摘要
+  // 观众，以及对局正常结束后的玩家：能看到调用统计，可以开上帝视角看所有身份、任务牌和思考摘要（服务端也按同一规则推送）
+  const fullView = !!viewer && !!summary && seesEverything(viewer, summary.status);
   const players = summary?.players ?? [];
   const mySeat = viewer?.kind === 'player' ? viewer.seat : null;
   const roles = visibleRoles(board, viewer, godView);
@@ -130,16 +130,10 @@ export function GameView({ gameId, token, onBack, onCreated }: Props) {
           {isSpectator ? '观战 · 全 AI 对局' : mySeat ? `你是 ${mySeat}号 ${playerName(players, mySeat)}` : ''}
         </span>
         <div className="spacer" />
-        {isSpectator && (
+        {fullView && (
           <label className="toggle">
             <input type="checkbox" checked={godView} onChange={(e) => setGodView(e.target.checked)} />
             上帝视角
-          </label>
-        )}
-        {thoughtsAvailable && (
-          <label className="toggle">
-            <input type="checkbox" checked={showThoughts} onChange={(e) => setShowThoughts(e.target.checked)} />
-            思考摘要
           </label>
         )}
         {summary?.status === 'running' && (
@@ -181,7 +175,7 @@ export function GameView({ gameId, token, onBack, onCreated }: Props) {
 
             <RoleGuide setup={setup} roles={roles} nightMarks={board.myRole?.marks ?? []} guesses={guesses} canMark={canMark} />
 
-            {isSpectator && board.usage.calls > 0 && (
+            {fullView && board.usage.calls > 0 && (
               <div className="stats">
                 <div>
                   <span className="muted">AI 调用</span> {board.usage.calls} 次
@@ -205,8 +199,8 @@ export function GameView({ gameId, token, onBack, onCreated }: Props) {
               events={events}
               players={players}
               viewer={viewer}
-              showRoles={godView}
-              showThoughts={showThoughts}
+              fullView={fullView}
+              godView={godView}
               roles={roles}
               acting={state.acting}
               live={state.live}

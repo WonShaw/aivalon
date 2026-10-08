@@ -93,6 +93,8 @@ export type GameEventBody =
   // 以下仅观众可见
   | { type: 'thought'; seat: number; action: ActionType; summary: string }
   | { type: 'ai_error'; seat: number; action: ActionType; message: string }
+  // costUsd 是这个 AI 的会话到这次调用为止的累计估算费用（SDK 续接会话时会带上之前的轮次），
+  // 不是这一次的费用；token 数是这一次调用的
   | { type: 'ai_usage'; seat: number; action: ActionType; costUsd: number; durationMs: number; cacheRead: number; cacheWrite: number; input: number; output: number };
 
 export type GameEvent = GameEventBody & {
@@ -129,6 +131,13 @@ export interface GameSummary {
 
 // 谁在看：全 AI 对局的上帝视角观众，或者某个座位上的人类玩家
 export type Viewer = { kind: 'spectator' } | { kind: 'player'; seat: number };
+
+// 能看到全部信息（所有人的身份、任务牌、AI 的思考摘要和调用统计）：全 AI 对局的观众一直可以，
+// 玩家在对局正常结束后也可以。服务端据此过滤推送，网页据此显示对应的开关和面板。
+// 只影响推给网页的内容，AI 的上下文由 engine.ts 的 visibleTo 单独过滤
+export function seesEverything(viewer: Viewer, status: GameStatus): boolean {
+  return viewer.kind === 'spectator' || status === 'finished';
+}
 
 // 等待人类玩家做的动作
 export interface HumanRequest {

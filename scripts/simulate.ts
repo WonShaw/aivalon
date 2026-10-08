@@ -3,7 +3,8 @@ import { appendFileSync, mkdtempSync, readFileSync, writeFileSync } from 'node:f
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { PRESETS, buildSetup } from '../shared/setup.ts';
-import { ROLE_TEAM, type ActionSubmission, type HumanRequest, type RolePreference, type StreamMessage } from '../shared/types.ts';
+import { ROLE_TEAM, seesEverything, type ActionSubmission, type GameEvent, type HumanRequest, type RolePreference, type StreamMessage } from '../shared/types.ts';
+import { deriveBoard } from '../web/derive.ts';
 import { Game } from '../server/game/engine.ts';
 import { GameStore } from '../server/game/store.ts';
 import { messageVisible } from '../server/game/visibility.ts';
@@ -164,7 +165,7 @@ try {
 } catch (e) {
   console.log('duplicate pick rejected:', (e as Error).message);
 }
-// 思考摘要：对局进行中只推给观众；正常结束后玩家也能看到。任务牌结束后仍然只给观众
+// 只给观众的内容（思考摘要、任务牌、出牌状态）：对局进行中玩家收不到；正常结束后玩家和观众一样都能收到
 {
   const spectatorOnly = { kind: 'spectator' } as const;
   const thought: StreamMessage = {
@@ -175,11 +176,29 @@ try {
     kind: 'event',
     event: { type: 'mission_cards', mission: 1, cards: { 2: 'fail' }, seq: 2, ts: 0, visibility: spectatorOnly },
   };
+  const missionStatus: StreamMessage = { kind: 'status', seat: 2, action: 'mission', active: true };
   const player = { kind: 'player', seat: 1 } as const;
-  if (messageVisible(thought, player) || !messageVisible(thought, player, true) || messageVisible(cards, player, true)) {
-    throw new Error('thought visibility wrong');
+  const during = seesEverything(player, 'running');
+  const after = seesEverything(player, 'finished');
+  if (during || !after || seesEverything(player, 'aborted') || !seesEverything({ kind: 'spectator' }, 'running')) {
+    throw new Error('seesEverything wrong');
   }
-  console.log('thought visibility ok');
+  for (const msg of [thought, cards, missionStatus]) {
+    if (messageVisible(msg, player, during) || !messageVisible(msg, player, after)) throw new Error(`${msg.kind} visibility wrong`);
+  }
+  console.log('full view visibility ok');
+}
+
+// 费用：每条 ai_usage 记的是该 AI 会话的累计值，总费用按每个会话的增量相加；累计值变小视为重置
+{
+  const usage = (seq: number, seat: number, costUsd: number): GameEvent => ({
+    type: 'ai_usage', seat, action: 'speak', costUsd, durationMs: 0, cacheRead: 0, cacheWrite: 0, input: 0, output: 0,
+    seq, ts: 0, visibility: { kind: 'spectator' },
+  });
+  const events = [usage(1, 1, 0.1), usage(2, 2, 0.2), usage(3, 1, 0.25), usage(4, 2, 0.5), usage(5, 1, 0.05)];
+  const cost = deriveBoard(events, { kind: 'spectator' }).usage.costUsd;
+  if (Math.abs(cost - (0.25 + 0.5 + 0.05)) > 1e-9) throw new Error(`cost total wrong: ${cost}`);
+  console.log('cost accounting ok');
 }
 
 // 赛后交流中断、且事件文件最后一行被写坏：恢复不能抛错（否则服务起不来），状态仍要收尾，这局才能删除

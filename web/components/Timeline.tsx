@@ -7,8 +7,8 @@ interface Props {
   events: GameEvent[];
   players: PlayerInfo[];
   viewer: Viewer | null;
-  showRoles: boolean; // 观众的上帝视角
-  showThoughts: boolean;
+  fullView: boolean; // 能看到全部信息：观众，或对局正常结束后的玩家
+  godView: boolean; // 上帝视角：其他人的身份、任务牌和思考摘要
   roles: Record<number, Role>; // 当前观看者能看到的身份
   acting: Record<number, ActionType>;
   live: Record<number, { action: ActionType; speech: string }>;
@@ -27,10 +27,9 @@ const SPEECH_KIND: Record<SpeechKind, string> = {
 const SPEAKING_ACTIONS: ActionType[] = ['propose', 'speak', 'final_team', 'evil_discuss', 'assassinate', 'reflect'];
 
 export function Timeline(props: Props) {
-  const { events, players, viewer, showRoles, showThoughts, acting, live } = props;
+  const { events, players, viewer, fullView, godView, acting, live } = props;
   const scrollRef = useRef<HTMLDivElement>(null);
   const stickToBottom = useRef(true);
-  const isSpectator = viewer?.kind === 'spectator';
   const mySeat = viewer?.kind === 'player' ? viewer.seat : null;
 
   const roleOf = (seat: number): Role | undefined => props.roles[seat];
@@ -85,7 +84,7 @@ export function Timeline(props: Props) {
             </div>
           );
         }
-        if (!isSpectator || !showRoles) return null;
+        if (!fullView || !godView) return null;
         return (
           <div className="sys small">
             {e.seat}号 {name(e.seat)} 的身份：
@@ -125,7 +124,7 @@ export function Timeline(props: Props) {
       }
       case 'thought':
         // 服务端只在允许时推送思考摘要：全 AI 对局的观众，或对局结束后的玩家
-        if (!showThoughts) return null;
+        if (!fullView || !godView) return null;
         return (
           <div className="thought">
             <div className="thought-head">
@@ -162,10 +161,10 @@ export function Timeline(props: Props) {
         );
       }
       case 'mission_cards':
-        if (!isSpectator || !showRoles) return null;
+        if (!fullView || !godView) return null;
         return (
           <div className="sys small">
-            任务牌（仅观众可见）：
+            任务牌（对局中仅观众可见）：
             {Object.entries(e.cards).map(([s, c]) => (
               <span key={s} className={`badge small ${c === 'success' ? 'good' : 'evil'}`}>
                 {s}号 {c === 'success' ? '成功' : '失败'}
@@ -231,7 +230,7 @@ export function Timeline(props: Props) {
       case 'postgame_end':
         return <div className="divider">赛后交流结束</div>;
       case 'ai_error':
-        if (!isSpectator) return null;
+        if (!fullView) return null;
         return (
           <div className="sys small error">
             {e.seat}号 {name(e.seat)}（{ACTION_LABEL[e.action]}）：{e.message}

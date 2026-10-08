@@ -397,7 +397,7 @@ export class Game {
           type: 'ai_usage',
           seat,
           action,
-          costUsd: res.costUsd,
+          costUsd: res.sessionCostUsd,
           durationMs: res.durationMs,
           cacheRead: res.usage.cacheRead,
           cacheWrite: res.usage.cacheWrite,

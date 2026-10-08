@@ -10,6 +10,7 @@ import type {
   StreamMessage,
   Viewer,
 } from '../shared/types.ts';
+import { seesEverything } from '../shared/types.ts';
 import { validateHumanNames } from '../shared/names.ts';
 import { STANDARD_SETUP, validateSetup } from '../shared/setup.ts';
 import { deleteAISession } from './ai/player.ts';
@@ -91,11 +92,11 @@ function stream(req: IncomingMessage, res: ServerResponse, id: string, token: st
     'Cache-Control': 'no-cache',
     Connection: 'keep-alive',
   });
-  // 对局正常结束后，玩家也能在网页上看到 AI 的思考摘要（观众一直能看到）
-  const isOver = () => game.record.status === 'finished';
-  let thoughtsVisible = viewer.kind === 'spectator' || isOver();
+  // 观众一直能看到全部信息；玩家在对局正常结束后也能看到，和观众一样
+  const seesAllNow = () => seesEverything(viewer, game.record.status);
+  let seesAll = seesAllNow();
   const send = (msg: StreamMessage) => {
-    if (messageVisible(msg, viewer, thoughtsVisible)) res.write(`data: ${JSON.stringify(msg)}\n\n`);
+    if (messageVisible(msg, viewer, seesAll)) res.write(`data: ${JSON.stringify(msg)}\n\n`);
   };
 
   // 推送完整的当前状态；前端收到 hello 会先清空再接收
@@ -112,10 +113,10 @@ function stream(req: IncomingMessage, res: ServerResponse, id: string, token: st
   };
   sendAll();
 
-  // 对局刚结束时重推一遍，之前没推给玩家的思考摘要不用刷新页面也能看到
+  // 对局刚结束时重推一遍，之前没推给玩家的内容（思考摘要、其他人的身份、任务牌、调用统计）不用刷新页面也能看到
   const onMessage = (msg: StreamMessage) => {
-    if (!thoughtsVisible && isOver()) {
-      thoughtsVisible = true;
+    if (!seesAll && seesAllNow()) {
+      seesAll = true;
       return sendAll();
     }
     send(msg);
