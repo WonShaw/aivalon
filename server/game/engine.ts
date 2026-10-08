@@ -17,7 +17,7 @@ import type {
   Visibility,
 } from '../../shared/types.ts';
 import { AIPlayer, type ActResult } from '../ai/player.ts';
-import { PERSONAS } from '../ai/personas.ts';
+import { AI_NAMES } from '../ai/names.ts';
 import {
   actionInstruction,
   invalidInstruction,
@@ -79,27 +79,24 @@ export class Game {
     const n = setup.length;
     const { humans: humanRoles, rest } = assignRoles(setup, req.humans.map((h) => h.role));
     const humanSeats = shuffle(seatsFrom(1, n)).slice(0, req.humans.length);
-    // 和人类重名的 AI 性格这局不用，避免桌上出现两个同名玩家
+    // 和人类重名的 AI 名字这局不用，避免桌上出现两个同名玩家
     const humanNames = new Set(req.humans.map((h) => h.name));
-    const personas = shuffle(PERSONAS.filter((p) => !humanNames.has(p.name)));
+    const aiNames = shuffle(AI_NAMES.filter((name) => !humanNames.has(name)));
     const aiRoles = shuffle(rest);
 
     const players: PlayerInfo[] = [];
     const roles: Record<number, Role> = {};
-    const personaDescriptions: Record<number, string> = {};
     const humanTokens: Record<number, string> = {};
     let a = 0;
     for (const seat of seatsFrom(1, n)) {
       const h = humanSeats.indexOf(seat);
       if (h >= 0) {
-        players.push({ seat, name: req.humans[h].name, kind: 'human', persona: '' });
+        players.push({ seat, name: req.humans[h].name, kind: 'human' });
         roles[seat] = humanRoles[h];
         humanTokens[seat] = randomBytes(16).toString('hex');
       } else {
-        const p = personas[a];
-        players.push({ seat, name: p.name, kind: 'ai', persona: p.tag });
+        players.push({ seat, name: aiNames[a], kind: 'ai' });
         roles[seat] = aiRoles[a];
-        personaDescriptions[seat] = p.description;
         a++;
       }
     }
@@ -110,7 +107,6 @@ export class Game {
       status: 'running',
       setup,
       players,
-      personas: personaDescriptions,
       roles,
       firstLeader: 1 + Math.floor(Math.random() * n),
       sessions: Object.fromEntries(players.filter((p) => p.kind === 'ai').map((p) => [p.seat, null])),
@@ -295,7 +291,6 @@ export class Game {
     const ctx = {
       viewer: seat,
       players: this.record.players,
-      personaDescription: this.record.personas[seat],
     };
     const lines = this.events
       .filter((e) => e.seq > this.cursors[seat] && this.visibleTo(e, seat))
@@ -497,7 +492,7 @@ export class Game {
         team = await this.teamRound(mission, attempt, leader, teamSize);
         leader = this.nextSeat(leader);
         if (!team && attempt === MAX_ATTEMPTS) {
-          return this.finish('evil', `第 ${mission} 个任务连续 ${MAX_ATTEMPTS} 次组队失败`);
+          return this.finish('evil', `第 ${mission} 个任务的组队连续 ${MAX_ATTEMPTS} 次被否决`);
         }
       }
 

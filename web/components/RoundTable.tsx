@@ -114,7 +114,7 @@ export function RoundTable({ setup, players, board, acting, viewer, roles, guess
                     ? '你'
                     : p.kind === 'human'
                       ? '人类'
-                      : p.persona}
+                      : 'AI'}
               </div>
               <div className="seat-badges">
                 {/* 每个座位最多一个标记：已知身份 > 自己的猜测 > 夜晚信息（有猜测时夜晚信息放进悬停提示） */}

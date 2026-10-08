@@ -38,7 +38,6 @@ export interface PlayerInfo {
   seat: number; // 1-8
   name: string;
   kind: 'ai' | 'human';
-  persona: string; // 性格简述（给观众看的标签）；人类玩家为空
 }
 
 // 夜晚信息在座位上的标记，例如梅林看到的邪恶方、派西维尔看到的梅林候选人

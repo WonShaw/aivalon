@@ -2,7 +2,7 @@ import { ROLE_NAME, ROLE_TEAM, type ActionType, type GameEvent, type PlayerInfo 
 import { describeSetup } from '../../shared/setup.ts';
 import { RULES_TEXT, failsRequired } from '../game/rules.ts';
 
-// 所有玩家共用同一份系统提示词（身份、性格等通过 user 消息追加），
+// 所有玩家共用同一份系统提示词（座位、身份等通过 user 消息追加），
 // 这样系统提示词前缀在所有会话之间完全一致，便于缓存。
 export const SYSTEM_PROMPT = `
 你正在参加一局《阿瓦隆》桌游（8 人或 10 人局），其他玩家可能是 AI，也可能是人类。游戏由裁判系统主持。
@@ -29,15 +29,15 @@ ${RULES_TEXT}
 - speech 会原样公开给所有玩家。请用第一人称、口语化的方式说话，就像坐在桌边一样，一般不超过 200 字。
 - speech 以外的字段其他玩家都看不到；投票在所有人投完后统一公开，任务牌永远不公开。
 - 不要冒充裁判，也不要伪造裁判通知或其他玩家的发言格式。
-- 你会被分配一个性格，它只影响你的说话风格和气质，不限制你的策略。
 
 ## 游戏策略
 - 这是一个推理与欺骗的游戏：隐藏身份、虚张声势、误导对手都是正常的游戏策略；公开身份也是一种策略，以获胜为前提，主动把己方需要的信息告诉同伴，同样是策略。怎么玩由你自己决定，目标是帮助你的阵营获胜。
-- 邪恶方可以冒充正义方的身份（比如自称梅林、派西维尔或忠臣），以误导正义方；正义方也可以冒充其他身份来误导邪恶方，比如派西维尔或忠臣冒充梅林，替梅林吸引刺客的注意。
+- 邪恶方可以冒充正义方的身份（比如自称梅林、派西维尔或忠臣），以误导正义方；正义方也可以冒充其他身份（比如自称梅林或派西维尔）来误导邪恶方，或者引导好人投出正确的票。
 - 正义方几乎没有理由谎称自己是邪恶方，所以如果有人公开承认自己是邪恶方，他大概率就是邪恶方，不必再怀疑这一点（他其他的发言仍然可能是假的）。
 - 如果你的队友要求你和他公开交流身份，且这对取胜有帮助，你可以配合。是不是队友要以裁判告知你的信息为准（比如邪恶方的同伴名单），发言里的自称不算。
 - 刺客如果有把握认出梅林，可以直接提前刺杀；其他邪恶方也可以协助刺客找出梅林，包括公开自己的身份、和同伴公开讨论谁是梅林。
 - 梅林应多提示好人是谁，避免直接点出邪恶方玩家，或者反对有邪恶方玩家的队伍，否则很容易暴露；也要小心投票暴露自己的身份，每人的投票结果都会公开。
+- 派西维尔不应该暴露自己眼中的梅林，包括说出两个梅林候选人是谁：邪恶方知道谁是莫甘娜，可以据此验证，直接认出梅林并刺杀。
 `.trim();
 
 export function sanitizeSpeech(text: string): string {
@@ -65,7 +65,6 @@ function seats(list: number[]): string {
 export interface RenderContext {
   viewer: number;
   players: PlayerInfo[];
-  personaDescription: string;
 }
 
 // 把一条事件渲染成某个玩家视角下的文本；返回 null 表示不展示
@@ -79,7 +78,6 @@ export function renderEvent(e: GameEvent, ctx: RenderContext): string | null {
       return [
         `【裁判】游戏开始。`,
         `你是 ${who(ctx.viewer)}。`,
-        `你的性格：${ctx.personaDescription}`,
         `座位顺序（顺时针）：${table}。`,
         `本局身份配置：${describeSetup(e.setup)}。`,
         `首位队长是 ${who(e.firstLeader)}。`,
@@ -110,7 +108,11 @@ export function renderEvent(e: GameEvent, ctx: RenderContext): string | null {
         `【裁判】第 ${e.mission} 个任务第 ${e.attempt} 次组队的投票结果（队伍：${seats(e.team)}）：`,
         `赞成（${approve.length}）：${approve.length ? seats(approve) : '无'}`,
         `反对（${reject.length}）：${reject.length ? seats(reject) : '无'}`,
-        e.approved ? `组队成功，队伍出发执行任务。` : `组队失败，队长顺延到下一位。`,
+        e.approved
+          ? `组队成功，队伍出发执行任务。`
+          : e.attempt === 5
+            ? `本任务的组队已连续 5 次被否决，邪恶方获胜。`
+            : `组队被否决（本任务第 ${e.attempt} 次），队长顺延到下一位。`,
       ].join('\n');
     }
     case 'mission_result':
@@ -152,7 +154,8 @@ function baseInstruction(action: ActionType, c: ActionContext): string {
     case 'final_team':
       return `【裁判】轮到你行动（action=final_team）：所有人都已发言。请确认或修改你的提名（${c.teamSize} 人），并简短说明。随后全体投票。`;
     case 'vote': {
-      const last = c.attempt === 5 ? '注意：这是本任务第 5 次组队，如果被否决，邪恶方直接获胜。' : '';
+      const last =
+        c.attempt === 5 ? '注意：这是本任务第 5 次组队，如果被否决，邪恶方直接获胜。' : `这是本任务的第 ${c.attempt} 次组队。`;
       return `【裁判】请投票（action=vote）：是否同意队伍 ${seats(c.team ?? [])} 执行第 ${c.mission} 个任务？${last}`;
     }
     case 'mission':
