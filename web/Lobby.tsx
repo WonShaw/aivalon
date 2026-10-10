@@ -17,6 +17,16 @@ import {
   type RolePreference,
 } from '../shared/types.ts';
 import { MAX_NAME_LENGTH, defaultHumanName, validateHumanNames } from '../shared/names.ts';
+import {
+  AI_EFFORTS,
+  AI_MODELS,
+  DEFAULT_AI_CONFIG,
+  EFFORT_NAME,
+  describeAIConfig,
+  isAIConfig,
+  type AIConfig,
+  type AIModel,
+} from '../shared/ai.ts';
 import { api, createGame, forgetGame, gameUrl, isLoopbackHost, loadSeats, type SavedSeat } from './client.ts';
 
 interface Props {
@@ -33,11 +43,13 @@ interface LobbyForm {
   mode: 'ai' | 'human';
   options: SetupOptions;
   humans: HumanSeatRequest[];
+  ai: AIConfig;
 }
 const DEFAULT_FORM: LobbyForm = {
   mode: 'ai',
   options: PRESETS[8][0].options,
   humans: [{ name: defaultHumanName(0), role: 'random' }],
+  ai: DEFAULT_AI_CONFIG,
 };
 
 function loadForm(): LobbyForm {
@@ -45,6 +57,8 @@ function loadForm(): LobbyForm {
     const form = { ...DEFAULT_FORM, ...JSON.parse(localStorage.getItem(FORM_KEY) ?? '{}') };
     // 早期保存的表单没有人数
     if (!PLAYER_COUNTS.includes(form.options.players)) form.options = { ...form.options, players: 8 };
+    // 早期保存的表单没有 AI 配置；保存过的模型下架了也换回默认
+    if (!isAIConfig(form.ai)) form.ai = DEFAULT_AI_CONFIG;
     // 早期的默认名字"我"之类容易让 AI 误解，换成默认名
     form.humans = form.humans.map((h: HumanSeatRequest, i: number) =>
       h.name.trim() && validateHumanNames([h.name]) ? { ...h, name: defaultHumanName(i) } : h,
@@ -68,7 +82,7 @@ export function Lobby({ onOpen, onCreated, created }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const seats = loadSeats();
-  const { mode, options, humans } = form;
+  const { mode, options, humans, ai } = form;
   const setup = buildSetup(options);
   const prefOptions: RolePreference[] = ['random', 'good', 'evil', ...new Set(setup)];
 
@@ -131,7 +145,7 @@ export function Lobby({ onOpen, onCreated, created }: Props) {
     setBusy(true);
     setError(null);
     try {
-      const req = { setup, humans: mode === 'ai' ? [] : humans.map((h) => ({ ...h, name: h.name.trim() })) };
+      const req = { setup, ai, humans: mode === 'ai' ? [] : humans.map((h) => ({ ...h, name: h.name.trim() })) };
       onCreated(await createGame(req));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -248,6 +262,30 @@ export function Lobby({ onOpen, onCreated, created }: Props) {
           )}
         </div>
 
+        <div className="setup">
+          <div className="setup-head">
+            <span className="setup-label">AI 模型</span>
+            <select value={ai.model} onChange={(e) => update({ ai: { ...ai, model: e.target.value as AIModel } })}>
+              {AI_MODELS.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="setup-head">
+            <span className="setup-label">推理强度</span>
+            <div className="segmented">
+              {AI_EFFORTS.map((e) => (
+                <button key={e} className={ai.effort === e ? 'active' : ''} onClick={() => update({ ai: { ...ai, effort: e } })}>
+                  {EFFORT_NAME[e]}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="muted small-text">所有 AI 玩家使用同一配置。开局后不能更改，赛后交流也沿用这一配置。</div>
+        </div>
+
         {mode === 'human' && (
           <div className="humans">
             <label>
@@ -343,6 +381,7 @@ export function Lobby({ onOpen, onCreated, created }: Props) {
                   </div>
                   <div className="muted small-text">
                     {humanCount ? `${humanCount} 名人类玩家` : '全 AI'} · {describeSetup(g.setup)}
+                    {g.ai && ` · ${describeAIConfig(g.ai)}`}
                   </div>
                 </div>
                 <div className="row">

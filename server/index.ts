@@ -11,6 +11,7 @@ import type {
   Viewer,
 } from '../shared/types.ts';
 import { seesEverything } from '../shared/types.ts';
+import { DEFAULT_AI_CONFIG, isAIConfig } from '../shared/ai.ts';
 import { validateHumanNames } from '../shared/names.ts';
 import { STANDARD_SETUP, validateSetup } from '../shared/setup.ts';
 import { deleteAISession } from './ai/player.ts';
@@ -37,6 +38,7 @@ function recordSummary(r: GameRecord): GameSummary {
     hasHumans: Object.keys(r.humanTokens ?? {}).length > 0,
     setup: r.setup ?? STANDARD_SETUP,
     postgame: r.postgame ?? 'none',
+    ai: r.ai,
   };
 }
 
@@ -147,10 +149,12 @@ async function createGame(req: IncomingMessage, res: ServerResponse): Promise<vo
   if (nameError) return json(res, 400, { error: nameError });
   const validPrefs = new Set<string>(['random', 'good', 'evil', ...setup]);
   if (humans.some((h) => !validPrefs.has(h.role))) return json(res, 400, { error: '选择的身份不在本局配置里' });
+  const ai = body.ai ?? DEFAULT_AI_CONFIG;
+  if (!isAIConfig(ai)) return json(res, 400, { error: '不支持的模型或推理强度' });
 
   let game: Game;
   try {
-    game = Game.create(store, { humans, setup });
+    game = Game.create(store, { humans, setup, ai: { model: ai.model, effort: ai.effort } });
   } catch (err) {
     return json(res, 400, { error: err instanceof Error ? err.message : String(err) });
   }

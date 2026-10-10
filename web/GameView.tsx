@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { describeAIConfig } from '../shared/ai.ts';
 import { seesEverything, type CreateGameResponse, type GameStatus } from '../shared/types.ts';
 import { api, createGame, loadRequest } from './client.ts';
 import { ActionPanel } from './components/ActionPanel.tsx';
@@ -63,13 +64,15 @@ export function GameView({ gameId, token, onBack, onCreated }: Props) {
   const humanNames = players.filter((p) => p.kind === 'human').map((p) => p.name);
   const setup = summary?.setup ?? [];
 
-  // 用相同的配置再开一局：同样的身份配置和人类玩家（座位重新随机）。
+  // 用相同的配置再开一局：同样的身份配置、AI 配置和人类玩家（座位重新随机）。
   // 人类选的身份只有创建者的浏览器记得，其他人点"再来一局"时身份改为随机
   const playAgain = async () => {
     setRestarting(true);
     try {
       const saved = loadRequest(gameId);
-      const req = saved ?? { setup, humans: humanNames.map((name) => ({ name, role: 'random' as const })) };
+      const req = saved
+        ? { ...saved, ai: saved.ai ?? summary?.ai }
+        : { setup, ai: summary?.ai, humans: humanNames.map((name) => ({ name, role: 'random' as const })) };
       onCreated(await createGame(req));
     } catch (e) {
       alert(e instanceof Error ? e.message : String(e));
@@ -129,6 +132,7 @@ export function GameView({ gameId, token, onBack, onCreated }: Props) {
         <span className="muted mode">
           {isSpectator ? '观战 · 全 AI 对局' : mySeat ? `你是 ${mySeat}号 ${playerName(players, mySeat)}` : ''}
         </span>
+        {summary?.ai && <span className="muted mode">{describeAIConfig(summary.ai)}</span>}
         <div className="spacer" />
         {fullView && (
           <label className="toggle">

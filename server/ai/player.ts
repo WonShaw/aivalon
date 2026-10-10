@@ -2,12 +2,11 @@ import { mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { deleteSession, query, type Options, type SDKResultMessage } from '@anthropic-ai/claude-agent-sdk';
+import type { AIConfig } from '../../shared/ai.ts';
 import type { ActionType } from '../../shared/types.ts';
 import { SYSTEM_PROMPT } from './prompts.ts';
 import { OUTPUT_SCHEMA, type AIOutput } from './schema.ts';
 
-const MODEL = process.env.AIVALON_MODEL ?? 'claude-opus-5-5';
-const EFFORT = (process.env.AIVALON_EFFORT ?? 'medium') as Options['effort'];
 // summarized：只拿官方的思考摘要；omitted：完全不返回思考内容
 const THINKING_DISPLAY = process.env.AIVALON_THINKING_DISPLAY === 'omitted' ? 'omitted' : 'summarized';
 
@@ -58,12 +57,12 @@ function sanitizedEnv(): Record<string, string | undefined> {
 }
 
 // AI 玩家只有一个能力：通过结构化输出提交动作。不给任何工具、不加载任何本地设置。
-function baseOptions(): Options {
+function baseOptions(config: AIConfig): Options {
   return {
     cwd: SANDBOX_DIR,
     env: sanitizedEnv(),
-    model: MODEL,
-    effort: EFFORT,
+    model: config.model,
+    effort: config.effort,
     thinking: { type: 'adaptive', display: THINKING_DISPLAY },
     systemPrompt: SYSTEM_PROMPT,
     outputFormat: { type: 'json_schema', schema: OUTPUT_SCHEMA as unknown as Record<string, unknown> },
@@ -98,6 +97,7 @@ export class AIPlayer {
   constructor(
     readonly seat: number,
     public sessionId: string | null,
+    private readonly config: AIConfig,
     private callbacks: PlayerCallbacks,
   ) {}
 
@@ -110,7 +110,7 @@ export class AIPlayer {
       const q = query({
         prompt,
         options: {
-          ...baseOptions(),
+          ...baseOptions(this.config),
           abortController,
           ...(this.sessionId ? { resume: this.sessionId } : {}),
         },

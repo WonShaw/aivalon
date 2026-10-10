@@ -1,5 +1,6 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
+import type { AIConfig } from '../../shared/ai.ts';
 import type { GameEvent, GameStatus, PlayerInfo, PostgameStatus, Role, Team } from '../../shared/types.ts';
 
 // 游戏记录（含所有身份与私密信息）只由服务端读写，AI 进程无法访问
@@ -18,6 +19,7 @@ export interface GameRecord {
   humanTokens: Record<number, string>; // 座位 -> 人类玩家的凭证
   cursors?: Record<number, number>; // 座位 -> 该 AI 已经看过的最后一个事件序号（早期记录没有）
   postgame?: PostgameStatus;
+  ai?: AIConfig; // 开局时选定的模型和推理强度，之后不再改动（早期的记录没有，按默认配置）
 }
 
 export class GameStore {

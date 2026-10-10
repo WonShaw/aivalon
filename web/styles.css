@@ -253,11 +253,13 @@ textarea {
 }
 .setup-label {
   font-weight: 600;
+  white-space: nowrap;
 }
 .setup-head {
   display: flex;
   align-items: center;
-  gap: 12px;
+  flex-wrap: wrap;
+  gap: 8px 12px;
 }
 .segmented {
   display: inline-flex;
@@ -270,6 +272,7 @@ textarea {
   border-radius: 0;
   padding: 4px 16px;
   background: transparent;
+  white-space: nowrap;
 }
 .segmented button + button {
   border-left: 1px solid var(--line);
@@ -1176,6 +1179,9 @@ textarea {
   .mode-switch,
   .presets {
     grid-template-columns: 1fr;
+  }
+  .segmented button {
+    padding: 4px 12px;
   }
   .link-row {
     grid-template-columns: 1fr auto;

@@ -1,5 +1,6 @@
 import { EventEmitter } from 'node:events';
 import { randomBytes, randomUUID } from 'node:crypto';
+import { DEFAULT_AI_CONFIG } from '../../shared/ai.ts';
 import { ROLE_NAME } from '../../shared/types.ts';
 import type {
   ActionSubmission,
@@ -111,6 +112,7 @@ export class Game {
       firstLeader: 1 + Math.floor(Math.random() * n),
       sessions: Object.fromEntries(players.filter((p) => p.kind === 'ai').map((p) => [p.seat, null])),
       humanTokens,
+      ai: req.ai ?? DEFAULT_AI_CONFIG,
     };
     store.saveRecord(record);
     return new Game(record, store);
@@ -158,7 +160,7 @@ export class Game {
     for (const p of record.players) {
       if (p.kind !== 'ai') continue;
       this.cursors[p.seat] = 0;
-      this.ais[p.seat] = new AIPlayer(p.seat, record.sessions[p.seat], {
+      this.ais[p.seat] = new AIPlayer(p.seat, record.sessions[p.seat], record.ai ?? DEFAULT_AI_CONFIG, {
         onSession: (s, sessionId) => {
           this.record.sessions[s] = sessionId;
           this.store.saveRecord(this.record);
@@ -194,9 +196,9 @@ export class Game {
   }
 
   summary(): GameSummary {
-    const { id, createdAt, status, winner, players, setup } = this.record;
+    const { id, createdAt, status, winner, players, setup, ai } = this.record;
     const postgame = this.record.postgame ?? 'none';
-    return { id, createdAt, status, winner, players, hasHumans: this.hasHumans, setup, postgame };
+    return { id, createdAt, status, winner, players, hasHumans: this.hasHumans, setup, postgame, ai };
   }
 
   actingNow(): { seat: number; action: ActionType }[] {

@@ -1,7 +1,8 @@
 // 检查 AI 玩家上下文里有没有混入多余的信息（文件、邮箱、工具等）
+import { DEFAULT_AI_CONFIG } from '../shared/ai.ts';
 import { AIPlayer } from '../server/ai/player.ts';
 
-const p = new AIPlayer(1, null, {
+const p = new AIPlayer(1, null, DEFAULT_AI_CONFIG, {
   onSession: (_, id) => console.log('session', id),
   onLiveSpeech: () => {},
 });

@@ -1,4 +1,5 @@
 // 前后端共享的类型定义
+import type { AIConfig } from './ai.ts';
 
 export type Role =
   | 'merlin'
@@ -127,6 +128,7 @@ export interface GameSummary {
   hasHumans: boolean;
   setup: Role[]; // 本局的身份配置（不含谁是谁）
   postgame: PostgameStatus;
+  ai?: AIConfig; // AI 玩家的模型和推理强度（早期的记录没有）
 }
 
 // 谁在看：全 AI 对局的上帝视角观众，或者某个座位上的人类玩家
@@ -175,6 +177,7 @@ export interface HumanSeatRequest {
 export interface CreateGameRequest {
   humans: HumanSeatRequest[]; // 空数组表示全 AI 对局
   setup: Role[]; // 8 个身份
+  ai?: AIConfig; // 不填用默认配置
 }
 
 export interface CreateGameResponse {
