@@ -112,6 +112,7 @@ function stream(req: IncomingMessage, res: ServerResponse, id: string, token: st
       const pending = game.pendingRequestFor(viewer.seat);
       if (pending) send({ kind: 'request', request: pending });
     }
+    send({ kind: 'synced', now: Date.now() });
   };
   sendAll();
 

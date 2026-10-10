@@ -12,6 +12,8 @@ interface Props {
   roles: Record<number, Role>; // 当前观看者能看到的身份
   acting: Record<number, ActionType>;
   live: Record<number, { action: ActionType; speech: string }>;
+  readingSeq?: number | null; // 正在朗读的事件
+  speakingSeat?: number | null; // 正在用自己的声音发言的座位
   children?: ReactNode; // 放在时间线最后，例如"再来一局"
 }
 
@@ -108,7 +110,9 @@ export function Timeline(props: Props) {
       case 'speech': {
         const label = SPEECH_KIND[e.kind];
         return (
-          <div className={`msg${e.seat === mySeat ? ' mine' : ''}`}>
+          <div
+            className={`msg${e.seat === mySeat ? ' mine' : ''}${e.seq === props.readingSeq && e.seat === props.speakingSeat ? ' speaking' : ''}`}
+          >
             <div className="avatar" style={{ '--hue': seatHue(e.seat) } as React.CSSProperties}>
               {e.seat}
             </div>
@@ -256,7 +260,11 @@ export function Timeline(props: Props) {
     <div className="timeline" ref={scrollRef} onScroll={onScroll}>
       {events.map((e) => {
         const node = render(e);
-        return node ? <div key={e.seq}>{node}</div> : null;
+        return node ? (
+          <div key={e.seq} className={e.seq === props.readingSeq ? 'reading' : undefined}>
+            {node}
+          </div>
+        ) : null;
       })}
 
       {speakingSeats.map((seat) => {

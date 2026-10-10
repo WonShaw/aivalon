@@ -188,6 +188,7 @@ export interface CreateGameResponse {
 // 通过 SSE 推给前端的消息
 export type StreamMessage =
   | { kind: 'hello'; viewer: Viewer }
+  | { kind: 'synced'; now: number } // 当前状态已推送完（跟在 hello 之后），之后收到的都是新发生的。now 是服务端此刻的时间
   | { kind: 'event'; event: GameEvent }
   | { kind: 'live'; seat: number; action: ActionType; speech: string } // 正在生成中的发言（流式）
   | { kind: 'status'; seat: number; action: ActionType; active: boolean } // 谁正在行动

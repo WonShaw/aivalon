@@ -10,13 +10,14 @@ interface Props {
   players: PlayerInfo[];
   board: BoardState;
   acting: Record<number, ActionType>;
+  speaking?: number | null; // 正在朗读谁的发言
   viewer: Viewer | null;
   roles: Record<number, Role>; // 当前观看者能看到的身份
   guesses: Record<number, Guess>;
   onGuess: (seat: number, guess: Guess | null) => void;
 }
 
-export function RoundTable({ setup, players, board, acting, viewer, roles, guesses, onGuess }: Props) {
+export function RoundTable({ setup, players, board, acting, speaking, viewer, roles, guesses, onGuess }: Props) {
   const [selected, setSelected] = useState<number | null>(null);
   const mySeat = viewer?.kind === 'player' ? viewer.seat : null;
   const marks: Record<number, SeatMark> = {};
@@ -70,11 +71,12 @@ export function RoundTable({ setup, players, board, acting, viewer, roles, guess
           const role = roles[p.seat];
           const vote = board.lastVote?.votes[p.seat];
           const act = acting[p.seat];
+          const speakingNow = p.seat === speaking;
           const mark = marks[p.seat];
           const guess = guesses[p.seat];
           const guessable = canGuess(p.seat);
           const classes = ['seat'];
-          if (act) classes.push('acting');
+          if (act || speakingNow) classes.push('acting');
           if (board.proposedTeam.includes(p.seat)) classes.push('in-team');
           if (p.seat === mySeat) classes.push('me');
           if (guessable) classes.push('guessable');
@@ -107,14 +109,16 @@ export function RoundTable({ setup, players, board, acting, viewer, roles, guess
                 )}
               </div>
               <div className="seat-name">{p.name}</div>
-              <div className={`seat-sub${act ? ' acting-text' : ''}`}>
-                {act
-                  ? `${p.kind === 'human' ? '等待' : '思考'}·${ACTION_LABEL[act]}`
-                  : p.seat === mySeat
-                    ? '你'
-                    : p.kind === 'human'
-                      ? '人类'
-                      : 'AI'}
+              <div className={`seat-sub${act || speakingNow ? ' acting-text' : ''}`}>
+                {speakingNow
+                  ? '发言中'
+                  : act
+                    ? `${p.kind === 'human' ? '等待' : '思考'}·${ACTION_LABEL[act]}`
+                    : p.seat === mySeat
+                      ? '你'
+                      : p.kind === 'human'
+                        ? '人类'
+                        : 'AI'}
               </div>
               <div className="seat-badges">
                 {/* 每个座位最多一个标记：已知身份 > 自己的猜测 > 夜晚信息（有猜测时夜晚信息放进悬停提示） */}

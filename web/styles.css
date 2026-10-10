@@ -414,6 +414,16 @@ textarea {
 .toggle input {
   accent-color: var(--gold);
 }
+.voice {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+.voice select {
+  font-size: 12px;
+  padding: 1px 4px;
+}
 .notice {
   padding: 10px 16px;
   color: var(--muted);
@@ -938,6 +948,13 @@ textarea {
 }
 .msg.pending .msg-text {
   border-style: dashed;
+}
+.reading .msg-text {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 1px var(--gold-soft);
+}
+.msg.speaking .avatar {
+  animation: pulse 1.2s ease-out infinite;
 }
 .caret {
   display: inline-block;

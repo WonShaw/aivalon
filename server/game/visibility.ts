@@ -10,6 +10,7 @@ export function eventVisible(e: GameEvent, viewer: Viewer, seesAll = false): boo
 export function messageVisible(msg: StreamMessage, viewer: Viewer, seesAll = false): boolean {
   switch (msg.kind) {
     case 'hello':
+    case 'synced':
     case 'game':
       return true;
     case 'event':

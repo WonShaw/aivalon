@@ -10,6 +10,7 @@ import { deriveBoard, visibleRoles } from './derive.ts';
 import { playerName, roleLabel, roleTone } from './format.ts';
 import { useGuesses } from './guesses.ts';
 import { useGameStream } from './useGameStream.ts';
+import { VOICE_RATES, useCaughtUpValue, usePlayback, useVoiceRate } from './voice.ts';
 
 const STATUS_LABEL: Record<GameStatus, string> = {
   running: '进行中',
@@ -47,9 +48,18 @@ interface Props {
 
 export function GameView({ gameId, token, onBack, onCreated }: Props) {
   const state = useGameStream(gameId, token);
-  const { viewer, summary, events } = state;
-  const board = useMemo(() => deriveBoard(events, viewer), [events, viewer]);
   const [godView, setGodView] = usePersistentToggle('aivalon.godView', true);
+  const [voiceOn, setVoiceOn] = usePersistentToggle('aivalon.voice', false);
+  const [voiceRate, setVoiceRate] = useVoiceRate();
+  // 开启朗读时，事件按朗读进度一条条显示；落后时对局状态、谁在行动、轮到你的操作都等追上了再显示
+  const voice = usePlayback(state, voiceOn, voiceRate);
+  const viewer = state.viewer;
+  const events = voice.events;
+  const summary = useCaughtUpValue(state.summary, voice.caughtUp);
+  const acting = voice.caughtUp ? state.acting : {};
+  const live = voice.caughtUp ? state.live : {};
+  const request = voice.caughtUp ? state.request : null;
+  const board = useMemo(() => deriveBoard(events, viewer), [events, viewer]);
 
   const isSpectator = viewer?.kind === 'spectator';
   // 观众，以及对局正常结束后的玩家：能看到调用统计，可以开上帝视角看所有身份、任务牌和思考摘要（服务端也按同一规则推送）
@@ -134,6 +144,32 @@ export function GameView({ gameId, token, onBack, onCreated }: Props) {
         </span>
         {summary?.ai && <span className="muted mode">{describeAIConfig(summary.ai)}</span>}
         <div className="spacer" />
+        {voice.supported && (
+          <span className="voice">
+            <label className="toggle" title="用浏览器自带的语音读出发言和流程（只读开启后的新内容）">
+              <input type="checkbox" checked={voiceOn} onChange={(e) => setVoiceOn(e.target.checked)} />
+              语音朗读
+            </label>
+            {voiceOn && (
+              <>
+                <select value={voiceRate} onChange={(e) => setVoiceRate(Number(e.target.value))} title="朗读语速">
+                  {VOICE_RATES.map((r) => (
+                    <option key={r} value={r}>
+                      {r}×
+                    </option>
+                  ))}
+                </select>
+                {!voice.hasChinese && <span className="muted">未找到中文语音</span>}
+                {voice.blocked && <span className="warn">点击页面任意处开始朗读</span>}
+                {voice.pending > 0 && (
+                  <button className="link" onClick={voice.skipToLatest} title="跳过积压的内容，只读最新一条">
+                    落后 {voice.pending} 条 · 跳到最新
+                  </button>
+                )}
+              </>
+            )}
+          </span>
+        )}
         {fullView && (
           <label className="toggle">
             <input type="checkbox" checked={godView} onChange={(e) => setGodView(e.target.checked)} />
@@ -163,7 +199,8 @@ export function GameView({ gameId, token, onBack, onCreated }: Props) {
               setup={setup}
               players={players}
               board={board}
-              acting={state.acting}
+              acting={acting}
+              speaking={voiceOn ? voice.speakingSeat : null}
               viewer={viewer}
               roles={roles}
               guesses={guesses}
@@ -206,8 +243,10 @@ export function GameView({ gameId, token, onBack, onCreated }: Props) {
               fullView={fullView}
               godView={godView}
               roles={roles}
-              acting={state.acting}
-              live={state.live}
+              acting={acting}
+              live={live}
+              readingSeq={voiceOn ? voice.reading : null}
+              speakingSeat={voiceOn ? voice.speakingSeat : null}
             >
               {(postgameButton || playAgainButton) && (
                 <div className="play-again">
@@ -216,8 +255,8 @@ export function GameView({ gameId, token, onBack, onCreated }: Props) {
                 </div>
               )}
             </Timeline>
-            {state.request && token && (
-              <ActionPanel gameId={gameId} token={token} request={state.request} players={players} />
+            {request && token && (
+              <ActionPanel gameId={gameId} token={token} request={request} players={players} />
             )}
           </main>
         </div>

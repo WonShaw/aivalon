@@ -3,6 +3,8 @@ import type { ActionType, GameEvent, GameSummary, HumanRequest, StreamMessage, V
 
 export interface StreamState {
   connected: boolean;
+  synced: boolean; // hello 之后的当前状态已收齐；之后到达的事件是新发生的
+  syncedAt: number; // 收齐时服务端的时间，用来判断哪些事件是刚刚发生的（不受本机时钟影响）
   error: string | null;
   viewer: Viewer | null;
   summary: GameSummary | null;
@@ -14,6 +16,8 @@ export interface StreamState {
 
 const initial: StreamState = {
   connected: false,
+  synced: false,
+  syncedAt: 0,
   error: null,
   viewer: null,
   summary: null,
@@ -43,6 +47,8 @@ function reducer(state: StreamState, action: Action): StreamState {
         case 'hello':
           // 重连时服务端会重发全部事件，先清空
           return { ...initial, connected: true, viewer: msg.viewer };
+        case 'synced':
+          return { ...state, synced: true, syncedAt: msg.now };
         case 'game':
           return { ...state, summary: msg.summary };
         case 'event': {
