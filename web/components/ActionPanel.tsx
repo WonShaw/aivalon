@@ -149,6 +149,9 @@ export function TableActions({ act }: { act: HumanAction | null }) {
   const { action, busy, submit, request } = act;
   return (
     <div className="table-actions">
+      {(action === 'vote' || action === 'mission') && (
+        <div className="your-turn-label">{action === 'vote' ? '轮到你投票' : '轮到你出任务牌'}</div>
+      )}
       {action === 'vote' && (
         <div className="big-buttons">
           <button className="approve" disabled={busy} onClick={() => submit({ vote: 'approve' })}>

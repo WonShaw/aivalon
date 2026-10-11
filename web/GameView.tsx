@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { describeAIConfig } from '../shared/ai.ts';
 import { seesEverything, type CreateGameResponse, type GameStatus } from '../shared/types.ts';
 import { api, createGame, loadRequest } from './client.ts';
@@ -72,6 +72,16 @@ export function GameView({ gameId, token, onBack, onCreated }: Props) {
   const [guesses, setGuess] = useGuesses(gameId, mySeat ? `seat${mySeat}` : 'spectator');
   const canMark = players.some((p) => p.seat !== mySeat && !roles[p.seat]);
   const act = useHumanAction(gameId, token, request, players);
+  // 轮到你时在标签页标题上提示，切到别的页面也能看到
+  const yourTurn = !!act;
+  useEffect(() => {
+    if (!yourTurn) return;
+    const title = document.title;
+    document.title = `【轮到你】${title}`;
+    return () => {
+      document.title = title;
+    };
+  }, [yourTurn]);
 
   const [restarting, setRestarting] = useState(false);
   const humanNames = players.filter((p) => p.kind === 'human').map((p) => p.name);

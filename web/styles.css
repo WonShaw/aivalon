@@ -453,6 +453,7 @@ textarea {
   font-size: 13px;
 }
 .stage-main {
+  position: relative;
   flex: 1;
   min-width: 0;
   min-height: 0;
@@ -502,10 +503,12 @@ textarea {
 .table-center {
   position: absolute;
   inset: 23%;
+  /* 从上往下排，下面的按钮、提示出现或消失时上面的部分不会跟着移动 */
+  padding-top: max(0px, 12cqw - 30px);
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   gap: clamp(4px, 1.2cqw, 10px);
   text-align: center;
 }
@@ -645,16 +648,53 @@ textarea {
   align-items: center;
   gap: 6px;
   width: 78%;
+  margin-top: 2px;
 }
-.table-actions:empty {
-  display: none;
+.your-turn-label {
+  font-weight: 700;
+  font-size: clamp(13px, 2.3cqw, 18px);
+  color: var(--gold);
+  animation: soft-pulse 1.4s ease-in-out infinite;
+}
+@keyframes soft-pulse {
+  50% {
+    opacity: 0.55;
+  }
 }
 .table-actions .big-buttons {
   width: 100%;
 }
 .table-actions .big-buttons button {
-  padding: clamp(5px, 1.3cqw, 10px);
-  font-size: clamp(13px, 2.3cqw, 17px);
+  padding: clamp(6px, 1.4cqw, 11px);
+  font-size: clamp(14px, 2.5cqw, 19px);
+}
+/* 桌上的按钮直接用实色，并且闪动发光，一眼能看出该操作了 */
+.table-actions .big-buttons .approve:not(:disabled) {
+  background: var(--ok);
+  border-color: var(--ok);
+  color: #06210f;
+  --glow: rgba(76, 195, 138, 0.75);
+  animation: glow 1.4s ease-in-out infinite;
+}
+.table-actions .big-buttons .reject:not(:disabled) {
+  background: var(--evil);
+  border-color: var(--evil);
+  color: #2a0808;
+  --glow: rgba(239, 90, 90, 0.75);
+  animation: glow 1.4s ease-in-out infinite;
+}
+@keyframes glow {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+  50% {
+    box-shadow: 0 0 14px 3px var(--glow);
+  }
+}
+.table-actions .big-buttons button:hover:not(:disabled) {
+  filter: brightness(1.12);
+  color: inherit;
 }
 .table-actions .error-text {
   margin: 0;
@@ -670,6 +710,38 @@ button.early-assassinate {
 button.early-assassinate:hover:not(:disabled) {
   border-color: var(--evil);
   background: var(--evil-soft);
+}
+/* 圆桌较小时（手机、窄窗口）中央放不下全部内容，收紧间距和尺寸，提示文字靠发光和实色按钮代替 */
+@container (max-width: 520px) {
+  .table-center {
+    gap: 3px;
+    padding-top: 2px;
+  }
+  .mission,
+  .slot {
+    width: 21px;
+    height: 21px;
+    font-size: 11px;
+  }
+  .attempts {
+    margin-top: 9px;
+  }
+  .your-turn-label,
+  .slots-hint {
+    display: none;
+  }
+  .table-actions .big-buttons {
+    gap: 6px;
+  }
+  .table-actions .big-buttons button {
+    padding: 3px 4px;
+    font-size: 13px;
+  }
+  button.early-assassinate {
+    font-size: 11px;
+    padding: 0 8px;
+    line-height: 1.5;
+  }
 }
 
 .seat {
@@ -1225,10 +1297,16 @@ button.early-assassinate:hover:not(:disabled) {
 
 /* 发言框：轮到你发言时从圆桌下方弹出，提交后消失 */
 .composer {
-  flex-shrink: 0;
-  width: min(760px, 100%);
+  /* 悬浮在圆桌下部，不挤占圆桌的空间；挡住视线时可以收起 */
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: 14px;
+  z-index: 20;
+  max-width: 760px;
   margin: 0 auto;
-  background: var(--panel);
+  background: rgba(27, 32, 41, 0.94);
+  backdrop-filter: blur(8px);
   border: 1px solid var(--gold);
   border-radius: var(--radius);
   padding: 12px 14px;
@@ -1277,12 +1355,23 @@ button.early-assassinate:hover:not(:disabled) {
 .composer button.assassinate:hover:not(:disabled) {
   background: var(--evil-soft);
 }
+/* 选好刺杀目标后，确认按钮闪动 */
+.composer button.assassinate:not(:disabled) {
+  --glow: rgba(239, 90, 90, 0.7);
+  animation: glow 1.4s ease-in-out infinite;
+}
+/* 收起后的发言框：放在右下角，不挡下方的座位，闪动发光提醒还没发言 */
 button.composer-pill {
-  flex-shrink: 0;
-  align-self: center;
+  position: absolute;
+  right: 20px;
+  bottom: 14px;
+  z-index: 20;
   border-color: var(--gold);
   color: var(--gold);
   background: var(--panel);
+  font-weight: 600;
+  --glow: rgba(255, 215, 106, 0.6);
+  animation: glow 1.4s ease-in-out infinite;
 }
 @keyframes rise {
   from {
@@ -1356,8 +1445,16 @@ button.composer-pill {
   }
   .composer {
     position: sticky;
+    left: auto;
+    right: auto;
     bottom: 8px;
-    z-index: 10;
+    width: 100%;
+  }
+  button.composer-pill {
+    position: sticky;
+    right: auto;
+    bottom: 8px;
+    align-self: flex-end;
   }
   .mode-switch,
   .presets {
