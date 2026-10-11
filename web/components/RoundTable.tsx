@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import type { ActionType, PlayerInfo, Role, SeatMark, Viewer } from '../../shared/types.ts';
 import { teamSizes } from '../../shared/setup.ts';
 import type { BoardState } from '../derive.ts';
 import { ACTION_LABEL, roleLabel, roleTone, seatHue } from '../format.ts';
 import { guessLabel, guessOptions, guessTeam, type Guess } from '../guesses.ts';
+import type { SeatPick } from './ActionPanel.tsx';
 
 interface Props {
   setup: Role[];
@@ -15,23 +16,52 @@ interface Props {
   roles: Record<number, Role>; // 当前观看者能看到的身份
   guesses: Record<number, Guess>;
   onGuess: (seat: number, guess: Guess | null) => void;
+  pick?: SeatPick | null; // 轮到你选人时：点头像选人，不再用来标记猜测
+  actions?: ReactNode; // 放在桌子中央提名列表下面，例如投票按钮
 }
 
-export function RoundTable({ setup, players, board, acting, speaking, viewer, roles, guesses, onGuess }: Props) {
+export function RoundTable({ setup, players, board, acting, speaking, viewer, roles, guesses, onGuess, pick, actions }: Props) {
   const [selected, setSelected] = useState<number | null>(null);
   const mySeat = viewer?.kind === 'player' ? viewer.seat : null;
   const marks: Record<number, SeatMark> = {};
   for (const m of board.myRole?.marks ?? []) marks[m.seat] = m;
 
   // 自己和已经能看到身份的座位不需要标记
-  const canGuess = (seat: number) => seat !== mySeat && !roles[seat];
+  const canGuess = (seat: number) => !pick && seat !== mySeat && !roles[seat];
   const selectedPlayer = selected !== null && canGuess(selected) ? players.find((p) => p.seat === selected) : undefined;
+
+  // 桌子中央的提名列表：轮到你选人时是你的选择，否则是本轮当前的提名
+  const result = board.missionResults[board.mission - 1];
+  const slots: { label: string; size: number; seats: number[]; tone?: string } | null = pick
+    ? { label: `${pick.label} ${pick.selected.length}/${pick.size}`, size: pick.size, seats: pick.selected, tone: pick.kind === 'target' ? 'evil' : 'pick' }
+    : board.gameOver || board.assassination || !board.teamSize
+      ? null
+      : {
+          label: result
+            ? `任务${result.success ? '成功' : '失败'}`
+            : board.lastVote
+              ? board.lastVote.approved
+                ? '组队成功 · 执行任务'
+                : '组队被否决'
+              : board.proposedTeam.length
+                ? board.proposalFinal
+                  ? '最终提名'
+                  : '初步提名'
+                : '等待队长提名',
+          size: board.teamSize,
+          seats: board.proposedTeam,
+          tone: result ? (result.success ? 'good' : 'evil') : board.lastVote && !board.lastVote.approved ? 'evil' : undefined,
+        };
+  // 选刺杀目标时不再显示提名的队伍（提前刺杀时当前的组队作废），只突出目标
+  const team = pick ? (pick.kind === 'team' ? pick.selected : []) : board.proposedTeam;
 
   return (
     <div className={`table-wrap seats-${players.length}`}>
       <div className="table">
         <div className="table-center">
-          <div className="table-title">{board.gameOver ? '游戏结束' : `第 ${board.mission} 个任务`}</div>
+          <div className="table-title">
+            {board.gameOver ? '游戏结束' : board.assassination ? '刺杀阶段' : `第 ${board.mission} 个任务`}
+          </div>
           <div className="missions">
             {teamSizes(players.length).map((size, i) => {
               const r = board.missionResults[i];
@@ -59,7 +89,74 @@ export function RoundTable({ setup, players, board, acting, speaking, viewer, ro
             ))}
             <span className="attempts-label">组队 {board.attempt}/5</span>
           </div>
+          {board.gameOver && (
+            <div className={`table-winner ${board.gameOver.winner}`}>
+              {board.gameOver.winner === 'good' ? '正义方获胜' : '邪恶方获胜'}
+            </div>
+          )}
+          {slots && (
+            <div className={`slots${slots.tone ? ` ${slots.tone}` : ''}`}>
+              <div className="slots-label">{slots.label}</div>
+              <div className="slots-row">
+                {Array.from({ length: slots.size }, (_, i) => {
+                  const seat = slots.seats[i];
+                  return seat === undefined ? (
+                    <span key={i} className="slot empty" />
+                  ) : (
+                    <button
+                      key={i}
+                      type="button"
+                      className="slot"
+                      style={{ '--hue': seatHue(seat) } as React.CSSProperties}
+                      disabled={!pick}
+                      title={pick ? '点击移出' : `${seat}号 ${players.find((p) => p.seat === seat)?.name ?? ''}`}
+                      onClick={pick ? () => pick.toggle(seat) : undefined}
+                    >
+                      {seat}
+                    </button>
+                  );
+                })}
+              </div>
+              {pick && pick.selected.length < pick.size && <div className="slots-hint">点击头像{pick.kind === 'team' ? '选人' : '选择目标'}</div>}
+            </div>
+          )}
+          {actions}
         </div>
+
+        {selectedPlayer && (
+          <div className="guess-panel">
+            <div className="guess-title">
+              标记 {selectedPlayer.seat}号 {selectedPlayer.name} 的身份
+              <span className="muted">（只有你自己看得到）</span>
+            </div>
+            <div className="guess-options">
+              {guessOptions(setup).map((g) => (
+                <button
+                  key={g}
+                  className={`guess-option ${guessTeam(g)}${guesses[selectedPlayer.seat] === g ? ' active' : ''}`}
+                  onClick={() => {
+                    onGuess(selectedPlayer.seat, g);
+                    setSelected(null);
+                  }}
+                >
+                  {guessLabel(g)}
+                </button>
+              ))}
+              <button
+                className="guess-option clear"
+                onClick={() => {
+                  onGuess(selectedPlayer.seat, null);
+                  setSelected(null);
+                }}
+              >
+                清除
+              </button>
+              <button className="guess-option clear" onClick={() => setSelected(null)}>
+                取消
+              </button>
+            </div>
+          </div>
+        )}
 
         {players.map((p) => {
           const angle = (-90 + ((p.seat - 1) * 360) / players.length) * (Math.PI / 180);
@@ -75,9 +172,12 @@ export function RoundTable({ setup, players, board, acting, speaking, viewer, ro
           const mark = marks[p.seat];
           const guess = guesses[p.seat];
           const guessable = canGuess(p.seat);
+          const pickable = !!pick?.seats.includes(p.seat);
           const classes = ['seat'];
           if (act || speakingNow) classes.push('acting');
-          if (board.proposedTeam.includes(p.seat)) classes.push('in-team');
+          if (team.includes(p.seat)) classes.push('in-team');
+          if (pick?.kind === 'target' && pick.selected.includes(p.seat)) classes.push('targeted');
+          if (pickable) classes.push('pickable');
           if (p.seat === mySeat) classes.push('me');
           if (guessable) classes.push('guessable');
           if (selected === p.seat) classes.push('selected');
@@ -87,8 +187,10 @@ export function RoundTable({ setup, players, board, acting, speaking, viewer, ro
               key={p.seat}
               className={classes.join(' ')}
               style={style}
-              onClick={guessable ? () => setSelected(selected === p.seat ? null : p.seat) : undefined}
-              title={guessable ? '点击标记你对他身份的猜测' : undefined}
+              onClick={
+                pickable ? () => pick!.toggle(p.seat) : guessable ? () => setSelected(selected === p.seat ? null : p.seat) : undefined
+              }
+              title={pickable ? (pick!.kind === 'team' ? '点击选入或移出队伍' : '点击选为刺杀目标') : guessable ? '点击标记你对他身份的猜测' : undefined}
             >
               <div className="avatar-wrap">
                 <div className="avatar">{p.seat}</div>
@@ -97,7 +199,7 @@ export function RoundTable({ setup, players, board, acting, speaking, viewer, ro
                     ♛
                   </span>
                 )}
-                {board.proposedTeam.includes(p.seat) && (
+                {team.includes(p.seat) && (
                   <span className="team-mark" title="在本轮提名的队伍里">
                     ⚔
                   </span>
@@ -134,51 +236,23 @@ export function RoundTable({ setup, players, board, acting, speaking, viewer, ro
           );
         })}
       </div>
+    </div>
+  );
+}
 
-      <div className="table-legend">
-        <span>
-          <span className="legend-crown">♛</span>队长
-        </span>
-        <span>
-          <span className="legend-ring" />⚔ 提名的队伍
-        </span>
-        <span>
-          <span className="legend-acting" />正在行动
-        </span>
-        <span>✓ ✗ 上一次投票</span>
-      </div>
-
-      {selectedPlayer && (
-        <div className="guess-panel">
-          <div className="guess-title">
-            标记 {selectedPlayer.seat}号 {selectedPlayer.name} 的身份
-            <span className="muted">（只有你自己看得到）</span>
-          </div>
-          <div className="guess-options">
-            {guessOptions(setup).map((g) => (
-              <button
-                key={g}
-                className={`guess-option ${guessTeam(g)}${guesses[selectedPlayer.seat] === g ? ' active' : ''}`}
-                onClick={() => {
-                  onGuess(selectedPlayer.seat, g);
-                  setSelected(null);
-                }}
-              >
-                {guessLabel(g)}
-              </button>
-            ))}
-            <button
-              className="guess-option clear"
-              onClick={() => {
-                onGuess(selectedPlayer.seat, null);
-                setSelected(null);
-              }}
-            >
-              清除
-            </button>
-          </div>
-        </div>
-      )}
+export function TableLegend() {
+  return (
+    <div className="table-legend">
+      <span>
+        <span className="legend-crown">♛</span>队长
+      </span>
+      <span>
+        <span className="legend-ring" />⚔ 提名的队伍
+      </span>
+      <span>
+        <span className="legend-acting" />正在行动
+      </span>
+      <span>✓ ✗ 上一次投票</span>
     </div>
   );
 }

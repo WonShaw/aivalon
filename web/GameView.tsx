@@ -2,9 +2,9 @@ import { useMemo, useState } from 'react';
 import { describeAIConfig } from '../shared/ai.ts';
 import { seesEverything, type CreateGameResponse, type GameStatus } from '../shared/types.ts';
 import { api, createGame, loadRequest } from './client.ts';
-import { ActionPanel } from './components/ActionPanel.tsx';
+import { Composer, TableActions, useHumanAction } from './components/ActionPanel.tsx';
 import { RoleGuide } from './components/RoleGuide.tsx';
-import { RoundTable } from './components/RoundTable.tsx';
+import { RoundTable, TableLegend } from './components/RoundTable.tsx';
 import { Timeline } from './components/Timeline.tsx';
 import { deriveBoard, visibleRoles } from './derive.ts';
 import { playerName, roleLabel, roleTone } from './format.ts';
@@ -71,6 +71,7 @@ export function GameView({ gameId, token, onBack, onCreated }: Props) {
   const roles = visibleRoles(board, viewer, godView);
   const [guesses, setGuess] = useGuesses(gameId, mySeat ? `seat${mySeat}` : 'spectator');
   const canMark = players.some((p) => p.seat !== mySeat && !roles[p.seat]);
+  const act = useHumanAction(gameId, token, request, players);
 
   const [restarting, setRestarting] = useState(false);
   const humanNames = players.filter((p) => p.kind === 'human').map((p) => p.name);
@@ -196,48 +197,58 @@ export function GameView({ gameId, token, onBack, onCreated }: Props) {
 
       {summary ? (
         <div className="game-body">
-          <aside className="side">
-            <RoundTable
-              setup={setup}
-              players={players}
-              board={board}
-              acting={acting}
-              speaking={voiceOn ? voice.speakingSeat : null}
-              viewer={viewer}
-              roles={roles}
-              guesses={guesses}
-              onGuess={setGuess}
-            />
+          <section className="stage">
+            <aside className="stage-info">
+              {board.myRole && (
+                <div className={`role-card ${roleTone(board.myRole.role)}`}>
+                  <div className="role-card-title">你的身份：{roleLabel(board.myRole.role)}</div>
+                  <div>{board.myRole.knowledge}</div>
+                </div>
+              )}
 
-            {board.myRole && (
-              <div className={`role-card ${roleTone(board.myRole.role)}`}>
-                <div className="role-card-title">你的身份：{roleLabel(board.myRole.role)}</div>
-                <div>{board.myRole.knowledge}</div>
+              <RoleGuide setup={setup} roles={roles} nightMarks={board.myRole?.marks ?? []} guesses={guesses} canMark={canMark} />
+              <TableLegend />
+
+              {fullView && board.usage.calls > 0 && (
+                <div className="stats">
+                  <div>
+                    <span className="muted">AI 调用</span> {board.usage.calls} 次
+                  </div>
+                  <div>
+                    <span className="muted">估算费用</span> ${board.usage.costUsd.toFixed(2)}
+                  </div>
+                  <div>
+                    <span className="muted">输出 token</span> {board.usage.output.toLocaleString()}
+                  </div>
+                  <div>
+                    <span className="muted">缓存命中</span>{' '}
+                    {Math.round((board.usage.cacheRead / Math.max(1, board.usage.cacheRead + board.usage.cacheWrite + board.usage.input)) * 100)}%
+                  </div>
+                </div>
+              )}
+            </aside>
+
+            <div className="stage-main">
+              <div className="stage-table">
+                <RoundTable
+                  setup={setup}
+                  players={players}
+                  board={board}
+                  acting={acting}
+                  speaking={voiceOn ? voice.speakingSeat : null}
+                  viewer={viewer}
+                  roles={roles}
+                  guesses={guesses}
+                  onGuess={setGuess}
+                  pick={act?.pick}
+                  actions={<TableActions act={act} />}
+                />
               </div>
-            )}
+              {act?.allowsSpeech && <Composer key={act.request.id} act={act} />}
+            </div>
+          </section>
 
-            <RoleGuide setup={setup} roles={roles} nightMarks={board.myRole?.marks ?? []} guesses={guesses} canMark={canMark} />
-
-            {fullView && board.usage.calls > 0 && (
-              <div className="stats">
-                <div>
-                  <span className="muted">AI 调用</span> {board.usage.calls} 次
-                </div>
-                <div>
-                  <span className="muted">估算费用</span> ${board.usage.costUsd.toFixed(2)}
-                </div>
-                <div>
-                  <span className="muted">输出 token</span> {board.usage.output.toLocaleString()}
-                </div>
-                <div>
-                  <span className="muted">缓存命中</span>{' '}
-                  {Math.round((board.usage.cacheRead / Math.max(1, board.usage.cacheRead + board.usage.cacheWrite + board.usage.input)) * 100)}%
-                </div>
-              </div>
-            )}
-          </aside>
-
-          <main className="main">
+          <main className="subtitles">
             <Timeline
               events={events}
               players={players}
@@ -257,9 +268,6 @@ export function GameView({ gameId, token, onBack, onCreated }: Props) {
                 </div>
               )}
             </Timeline>
-            {request && token && (
-              <ActionPanel gameId={gameId} token={token} request={request} players={players} />
-            )}
           </main>
         </div>
       ) : (

@@ -145,22 +145,16 @@ export function Timeline(props: Props) {
         );
       case 'team_vote': {
         const seats = Object.keys(e.votes).map(Number).sort((a, b) => a - b);
-        const approvals = seats.filter((s) => e.votes[s] === 'approve').length;
+        const approve = seats.filter((s) => e.votes[s] === 'approve');
+        const reject = seats.filter((s) => e.votes[s] === 'reject');
+        const list = (l: number[]) => (l.length ? l.map((s) => `${s}号`).join(' ') : '无');
         return (
           <div className={`vote-card ${e.approved ? 'ok' : 'bad'}`}>
             <div className="vote-title">
-              投票结果：{approvals} 赞成 / {seats.length - approvals} 反对 → {e.approved ? '组队成功' : '组队失败'}
+              投票：{approve.length} 赞成 / {reject.length} 反对 → {e.approved ? '组队成功' : '组队失败'}
             </div>
-            <div className="vote-grid">
-              {seats.map((s) => (
-                <div key={s} className={`vote-cell ${e.votes[s]}`}>
-                  <span>
-                    {s} {name(s)}
-                  </span>
-                  <b>{e.votes[s] === 'approve' ? '✓' : '✗'}</b>
-                </div>
-              ))}
-            </div>
+            <div className="vote-line approve">✓ {list(approve)}</div>
+            <div className="vote-line reject">✗ {list(reject)}</div>
           </div>
         );
       }

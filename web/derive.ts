@@ -5,7 +5,9 @@ export interface BoardState {
   attempt: number;
   leader: number | null;
   teamSize: number | null;
-  proposedTeam: number[]; // 当前提名（未投票前）
+  proposedTeam: number[]; // 本轮当前的提名（投票后保留到下一轮开始）
+  proposalFinal: boolean; // 当前提名是不是最终提名
+  assassination: boolean; // 进入了刺杀阶段
   lastVote: { votes: Record<number, 'approve' | 'reject'>; approved: boolean } | null;
   missionResults: ({ success: boolean; fails: number } | null)[];
   knownRoles: Record<number, Role>; // 当前观看者收到的全部身份信息（观众是所有人的）
@@ -22,6 +24,8 @@ export function deriveBoard(events: GameEvent[], viewer: Viewer | null): BoardSt
     leader: null,
     teamSize: null,
     proposedTeam: [],
+    proposalFinal: false,
+    assassination: false,
     lastVote: null,
     missionResults: [null, null, null, null, null],
     knownRoles: {},
@@ -49,10 +53,12 @@ export function deriveBoard(events: GameEvent[], viewer: Viewer | null): BoardSt
         s.leader = e.leader;
         s.teamSize = e.teamSize;
         s.proposedTeam = [];
+        s.proposalFinal = false;
         s.lastVote = null;
         break;
       case 'team_proposed':
         s.proposedTeam = e.team;
+        s.proposalFinal = e.final;
         break;
       case 'team_vote':
         s.lastVote = { votes: e.votes, approved: e.approved };
@@ -63,6 +69,7 @@ export function deriveBoard(events: GameEvent[], viewer: Viewer | null): BoardSt
       case 'assassination_start':
         for (const x of e.evil) s.knownRoles[x.seat] = s.publicRoles[x.seat] = x.role;
         // 刺杀阶段不再显示提名和投票（提前刺杀时当前的组队作废）
+        s.assassination = true;
         s.proposedTeam = [];
         s.lastVote = null;
         break;

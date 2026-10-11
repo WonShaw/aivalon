@@ -281,6 +281,7 @@ class Playback {
   private revealed = new Set<number>(); // 已经显示的事件
   private queue: GameEvent[] = []; // 收到了、还没显示的事件
   private queued = new Set<number>();
+  private silent = new Set<number>(); // 只显示、不朗读的事件
   private initialized = false; // 连接时推来的历史事件已经收齐（不排队，直接显示）
   private pumping = false;
   private reading: number | null = null;
@@ -331,9 +332,11 @@ class Playback {
     for (const seq of this.queued) maxKnown = Math.max(maxKnown, seq);
     const fresh = events.filter((e) => !this.revealed.has(e.seq) && !this.queued.has(e.seq));
     if (fresh.length === 0) return;
-    // 序号比已知的还小的，是之前对自己隐藏、现在才能看到的（例如对局结束后其他人的身份），放到最后，
-    // 免得在"游戏结束"播报之前就剧透
-    const ordered = [...fresh.filter((e) => e.seq > maxKnown), ...fresh.filter((e) => e.seq < maxKnown)];
+    // 序号比已知的还小的，是之前对自己隐藏、现在才能看到的（例如对局结束后其他人的身份和每局的任务牌），
+    // 放到最后，免得在"游戏结束"播报之前就剧透；这些是补看的旧事，只显示不朗读
+    const late = fresh.filter((e) => e.seq < maxKnown);
+    for (const e of late) this.silent.add(e.seq);
+    const ordered = [...fresh.filter((e) => e.seq > maxKnown), ...late];
     for (const e of ordered) {
       this.queue.push(e);
       this.queued.add(e.seq);
@@ -366,7 +369,7 @@ class Playback {
         const e = this.queue.shift()!;
         this.queued.delete(e.seq);
         this.revealed.add(e.seq);
-        const segments = narrate(e, this.players, this.mySeat, this.godView);
+        const segments = this.narrate(e);
         this.reading = segments ? e.seq : null;
         this.changed();
         if (!segments) continue;
@@ -382,13 +385,17 @@ class Playback {
     }
   }
 
+  private narrate(e: GameEvent): Segment[] | null {
+    return this.silent.has(e.seq) ? null : narrate(e, this.players, this.mySeat, this.godView);
+  }
+
   private makeSnapshot(): PlaybackState {
     return {
       supported: this.speaker.supported,
       hasChinese: this.speaker.hasChinese(),
       reading: this.reading,
       speakingSeat: this.speaker.speakingSeat,
-      pending: this.queue.filter((e) => narrate(e, this.players, this.mySeat, this.godView)).length,
+      pending: this.queue.filter((e) => this.narrate(e)).length,
       caughtUp: !this.enabled || (this.queue.length === 0 && this.reading === null),
       blocked: this.speaker.blocked,
     };
