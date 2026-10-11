@@ -49,7 +49,7 @@ interface Props {
 export function GameView({ gameId, token, onBack, onCreated }: Props) {
   const state = useGameStream(gameId, token);
   const [godView, setGodView] = usePersistentToggle('aivalon.godView', true);
-  const [voiceOn, setVoiceOn] = usePersistentToggle('aivalon.voice', false);
+  const [voiceOn, setVoiceOn] = usePersistentToggle('aivalon.voice', true);
   const [voiceRate, setVoiceRate] = useVoiceRate();
   // 开启朗读时，事件按朗读进度一条条显示；落后时对局状态、谁在行动、轮到你的操作都等追上了再显示
   // 上帝视角下时间线显示每张任务牌，朗读也跟着读出来
