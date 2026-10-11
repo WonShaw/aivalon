@@ -69,8 +69,8 @@ function splitText(text: string): string[] {
 
 const seatList = (seats: number[]) => seats.map((s) => `${s}号`).join('、');
 
-// 把一条事件变成要读的内容；不需要读的返回 null
-export function narrate(e: GameEvent, players: PlayerInfo[], mySeat: number | null): Segment[] | null {
+// 把一条事件变成要读的内容；不需要读的返回 null。godView 表示开着上帝视角，时间线上能看到每张任务牌
+export function narrate(e: GameEvent, players: PlayerInfo[], mySeat: number | null, godView = false): Segment[] | null {
   const who = (seat: number) => `${seat}号${playerName(players, seat)}`;
   const say = (text: string): Segment[] => [{ seat: null, text }];
   switch (e.type) {
@@ -94,7 +94,18 @@ export function narrate(e: GameEvent, players: PlayerInfo[], mySeat: number | nu
     case 'team_vote': {
       const votes = Object.values(e.votes);
       const approvals = votes.filter((v) => v === 'approve').length;
-      return say(`投票结果：${approvals}票赞成，${votes.length - approvals}票反对，组队${e.approved ? '成功' : '失败'}。`);
+      return say(
+        `投票结果：${approvals}票赞成，${votes.length - approvals}票反对，组队${e.approved ? '成功' : '失败'}。` +
+          (e.approved ? '开始执行任务，出任务牌。' : ''),
+      );
+    }
+    case 'mission_cards': {
+      if (!godView) return null;
+      const fails = Object.keys(e.cards)
+        .map(Number)
+        .filter((s) => e.cards[s] === 'fail')
+        .sort((a, b) => a - b);
+      return say(fails.length ? `任务牌：${seatList(fails)}出了失败票。` : '任务牌：全部是成功票。');
     }
     case 'mission_result':
       return say(`第${e.mission}个任务${e.success ? '成功' : '失败'}，失败票${e.fails}张。`);
@@ -279,6 +290,7 @@ class Playback {
   enabled = false;
   players: PlayerInfo[] = [];
   mySeat: number | null = null;
+  godView = false;
 
   constructor() {
     this.snapshot = this.makeSnapshot();
@@ -354,7 +366,7 @@ class Playback {
         const e = this.queue.shift()!;
         this.queued.delete(e.seq);
         this.revealed.add(e.seq);
-        const segments = narrate(e, this.players, this.mySeat);
+        const segments = narrate(e, this.players, this.mySeat, this.godView);
         this.reading = segments ? e.seq : null;
         this.changed();
         if (!segments) continue;
@@ -376,7 +388,7 @@ class Playback {
       hasChinese: this.speaker.hasChinese(),
       reading: this.reading,
       speakingSeat: this.speaker.speakingSeat,
-      pending: this.queue.filter((e) => narrate(e, this.players, this.mySeat)).length,
+      pending: this.queue.filter((e) => narrate(e, this.players, this.mySeat, this.godView)).length,
       caughtUp: !this.enabled || (this.queue.length === 0 && this.reading === null),
       blocked: this.speaker.blocked,
     };
@@ -393,6 +405,7 @@ export function usePlayback(
   stream: StreamState,
   enabled: boolean,
   rate: number,
+  godView: boolean,
 ): PlaybackState & { events: GameEvent[]; skipToLatest: () => void } {
   const [playback] = useState(() => new Playback());
   const state = useSyncExternalStore(playback.subscribe, playback.getSnapshot);
@@ -401,6 +414,7 @@ export function usePlayback(
   playback.players = stream.summary?.players ?? [];
   playback.mySeat = viewer?.kind === 'player' ? viewer.seat : null;
   playback.speaker.rate = rate;
+  playback.godView = godView;
 
   useEffect(() => {
     const detach = playback.speaker.attach();

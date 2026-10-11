@@ -52,7 +52,9 @@ export function GameView({ gameId, token, onBack, onCreated }: Props) {
   const [voiceOn, setVoiceOn] = usePersistentToggle('aivalon.voice', false);
   const [voiceRate, setVoiceRate] = useVoiceRate();
   // 开启朗读时，事件按朗读进度一条条显示；落后时对局状态、谁在行动、轮到你的操作都等追上了再显示
-  const voice = usePlayback(state, voiceOn, voiceRate);
+  // 上帝视角下时间线显示每张任务牌，朗读也跟着读出来
+  const voiceGodView = godView && !!state.viewer && !!state.summary && seesEverything(state.viewer, state.summary.status);
+  const voice = usePlayback(state, voiceOn, voiceRate, voiceGodView);
   const viewer = state.viewer;
   const events = voice.events;
   const summary = useCaughtUpValue(state.summary, voice.caughtUp);
