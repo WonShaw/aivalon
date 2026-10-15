@@ -232,6 +232,22 @@ async function startPostgame(req: IncomingMessage, res: ServerResponse, id: stri
   json(res, 200, { ok: true });
 }
 
+// 赛后单独对话：参与这局的人类玩家选一名 AI，对他说一段话，AI 公开回复
+async function startChat(req: IncomingMessage, res: ServerResponse, id: string): Promise<void> {
+  const game = loadGame(id);
+  if (!game) return json(res, 404, { error: '对局不存在' });
+  const body = await readBody<{ token?: string; target?: unknown; text?: unknown }>(req);
+  const seat = body.token ? game.seatForToken(body.token) : null;
+  if (seat === null) return json(res, 403, { error: '只有参与这局的玩家可以单独对话' });
+  if (!game.canStartPostgame()) return json(res, 409, { error: '只有正常结束的对局才能赛后对话，并且要等当前的发言结束' });
+  const error = game.chatError(seat, body.target, body.text);
+  if (error) return json(res, 400, { error });
+  const busy = runningGame();
+  if (busy) return json(res, 409, { error: '已有一局正在进行，结束后再来对话', id: busy.id });
+  void game.runChat(seat, body.target as number, body.text as string);
+  json(res, 200, { ok: true });
+}
+
 async function stop(req: IncomingMessage, res: ServerResponse, id: string): Promise<void> {
   const game = games.get(id);
   if (!game || !isBusy(game)) return json(res, 404, { error: '对局未在进行' });
@@ -279,13 +295,14 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
   const del = /^\/api\/games\/([\w-]+)$/.exec(path);
   if (del && req.method === 'DELETE') return deleteGame(res, del[1]);
 
-  const m = /^\/api\/games\/([\w-]+)\/(stream|act|stop|postgame)$/.exec(path);
+  const m = /^\/api\/games\/([\w-]+)\/(stream|act|stop|postgame|chat)$/.exec(path);
   if (m) {
     const [, id, op] = m;
     if (op === 'stream' && req.method === 'GET') return stream(req, res, id, url.searchParams.get('token'));
     if (op === 'act' && req.method === 'POST') return act(req, res, id);
     if (op === 'stop' && req.method === 'POST') return stop(req, res, id);
     if (op === 'postgame' && req.method === 'POST') return startPostgame(req, res, id);
+    if (op === 'chat' && req.method === 'POST') return startChat(req, res, id);
   }
 
   if (path.startsWith('/api/')) return json(res, 404, { error: 'not found' });

@@ -84,8 +84,10 @@ export function narrate(e: GameEvent, players: PlayerInfo[], mySeat: number | nu
     case 'speech': {
       if (e.seat === mySeat) return null;
       const label = SPEECH_LABEL[e.kind];
+      // 赛后单独对话：说明是对谁说的
+      const to = e.to === undefined ? '' : `对${e.to === mySeat ? '你' : who(e.to)}说`;
       return [
-        { seat: null, text: `${who(e.seat)}${label ? `，${label}` : ''}。` },
+        { seat: null, text: `${who(e.seat)}${to}${label ? `，${label}` : ''}。` },
         { seat: e.seat, text: e.text },
       ];
     }

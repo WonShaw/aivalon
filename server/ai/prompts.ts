@@ -25,6 +25,7 @@ ${RULES_TEXT}
   - evil_discuss：speech
   - assassinate：target（你认为是梅林的玩家的座位号），speech 可选
   - reflect：speech（游戏结束后的赛后感想）
+  - chat：speech（游戏结束后，有玩家单独找你说话时的回复）
 - 提前刺杀：如果你是刺客，在组队和任务阶段轮到你行动时（propose、speak、final_team、vote、mission），可以不做要求的动作，改为提交 action=assassinate，target 填你认为是梅林的玩家的座位号（不能是你自己），speech 可选。刺中梅林则邪恶方立即获胜，刺错则正义方立即获胜，提交后不能反悔。
 - speech 会原样公开给所有玩家。请用第一人称、口语化的方式说话，就像坐在桌边一样，发言上限是 600 字。
 - speech 以外的字段其他玩家都看不到；投票在所有人投完后统一公开，任务牌永远不公开。
@@ -70,6 +71,7 @@ const SPEECH_KIND_LABEL: Record<string, string> = {
   assassin_discuss: '刺杀讨论',
   assassinate: '刺杀宣言',
   reflect: '赛后感想',
+  chat: '赛后对话',
 };
 
 function seats(list: number[]): string {
@@ -111,7 +113,9 @@ export function renderEvent(e: GameEvent, ctx: RenderContext): string | null {
     }
     case 'speech': {
       if (e.seat === ctx.viewer) return null; // 自己说的话已在自己的会话里
-      return `<发言 座位="${e.seat}" 名字="${name(e.seat)}" 类型="${SPEECH_KIND_LABEL[e.kind]}">\n${e.text}\n</发言>`;
+      // 赛后单独对话：标出说给谁听
+      const to = e.to === undefined ? '' : ` 对象="${e.to === ctx.viewer ? '你' : `${e.to}号「${name(e.to)}」`}"`;
+      return `<发言 座位="${e.seat}" 名字="${name(e.seat)}" 类型="${SPEECH_KIND_LABEL[e.kind]}"${to}>\n${e.text}\n</发言>`;
     }
     case 'team_proposed':
       return `【裁判】${who(e.leader)} ${e.final ? '最终提名' : '初步提名'}的队伍：${seats(e.team)}。`;
@@ -157,6 +161,7 @@ export interface ActionContext {
   team?: number[];
   recap?: string; // 赛后交流：本局结果和全部身份
   round?: number; // 赛后交流：第几轮
+  chatFrom?: string; // 赛后单独对话：谁在找你说话，例如 2号「小明」
 }
 
 function baseInstruction(action: ActionType, c: ActionContext): string {
@@ -190,6 +195,12 @@ function baseInstruction(action: ActionType, c: ActionContext): string {
         `【裁判】游戏已经结束。${c.recap ?? ''}`,
         `现在是赛后交流时间，所有身份都已公开，大家按座位顺序各发言一次（action=reflect）。`,
         `请在 speech 里像朋友聚会复盘一样，口语化地聊聊你对这局的感想：比如印象最深的时刻、你自己这局玩得怎么样、对其他玩家的看法。`,
+      ].join('\n');
+    case 'chat':
+      // 第一次参与赛后交流时才带上本局结果，之后会话里已经有了
+      return [
+        `【裁判】${c.recap ? `游戏已经结束，所有身份都已公开。${c.recap}\n` : ''}赛后单独对话：${c.chatFrom} 刚刚单独对你说了上面这段话，请回复（action=chat）。`,
+        `这段对话是公开的，所有人都能看到，之后其他人发言时也能看到。像朋友聊天一样口语化地回答。`,
       ].join('\n');
   }
 }

@@ -11,6 +11,7 @@ export const ACTION_TYPES: ActionType[] = [
   'evil_discuss',
   'assassinate',
   'reflect',
+  'chat',
 ];
 
 export const OUTPUT_SCHEMA = {

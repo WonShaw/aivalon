@@ -21,6 +21,7 @@ export const ACTION_LABEL: Record<ActionType, string> = {
   evil_discuss: '刺杀讨论',
   assassinate: '刺杀',
   reflect: '赛后感想',
+  chat: '赛后对话',
 };
 
 // 每个座位一个固定色相，用于头像

@@ -117,7 +117,7 @@ export function RoundTable({ setup, players, board, acting, speaking, viewer, ro
                   );
                 })}
               </div>
-              {pick && pick.selected.length < pick.size && <div className="slots-hint">点击头像{pick.kind === 'team' ? '选人' : '选择目标'}</div>}
+              {pick && pick.selected.length < pick.size && <div className="slots-hint">点击头像{{ team: '选人', target: '选择目标', chat: '选择对话对象' }[pick.kind]}</div>}
             </div>
           )}
           {actions}
@@ -177,6 +177,7 @@ export function RoundTable({ setup, players, board, acting, speaking, viewer, ro
           if (act || speakingNow) classes.push('acting');
           if (team.includes(p.seat)) classes.push('in-team');
           if (pick?.kind === 'target' && pick.selected.includes(p.seat)) classes.push('targeted');
+          if (pick?.kind === 'chat' && pick.selected.includes(p.seat)) classes.push('chat-target');
           if (pickable) classes.push('pickable');
           if (p.seat === mySeat) classes.push('me');
           if (guessable) classes.push('guessable');
@@ -190,7 +191,13 @@ export function RoundTable({ setup, players, board, acting, speaking, viewer, ro
               onClick={
                 pickable ? () => pick!.toggle(p.seat) : guessable ? () => setSelected(selected === p.seat ? null : p.seat) : undefined
               }
-              title={pickable ? (pick!.kind === 'team' ? '点击选入或移出队伍' : '点击选为刺杀目标') : guessable ? '点击标记你对他身份的猜测' : undefined}
+              title={
+                pickable
+                  ? { team: '点击选入或移出队伍', target: '点击选为刺杀目标', chat: '点击选为对话对象' }[pick!.kind]
+                  : guessable
+                    ? '点击标记你对他身份的猜测'
+                    : undefined
+              }
             >
               <div className="avatar-wrap">
                 <div className="avatar">{p.seat}</div>

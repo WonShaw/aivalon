@@ -775,6 +775,11 @@ button.early-assassinate:hover:not(:disabled) {
 .seat.selected {
   outline: 1px dashed var(--gold);
 }
+.seat.chat-target .avatar {
+  box-shadow:
+    0 0 0 3px var(--gold),
+    0 0 14px rgba(214, 178, 94, 0.6);
+}
 .avatar-wrap {
   position: relative;
 }
@@ -1372,6 +1377,10 @@ button.composer-pill {
   font-weight: 600;
   --glow: rgba(255, 215, 106, 0.6);
   animation: glow 1.4s ease-in-out infinite;
+}
+/* 赛后单独对话是可选的，收起后不用闪动提醒 */
+button.composer-pill.quiet {
+  animation: none;
 }
 @keyframes rise {
   from {

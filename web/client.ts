@@ -20,6 +20,8 @@ export const api = {
   deleteAllGames: () => request<{ ok: true; deleted: string[]; sessions: number }>('/api/games', { method: 'DELETE' }),
   startPostgame: (id: string, token?: string) =>
     request<{ ok: true }>(`/api/games/${id}/postgame`, { method: 'POST', body: JSON.stringify({ token }) }),
+  chat: (id: string, token: string, target: number, text: string) =>
+    request<{ ok: true }>(`/api/games/${id}/chat`, { method: 'POST', body: JSON.stringify({ token, target, text }) }),
   stop: (id: string, token?: string) =>
     request<{ ok: true }>(`/api/games/${id}/stop`, { method: 'POST', body: JSON.stringify({ token }) }),
 };

@@ -24,9 +24,10 @@ const SPEECH_KIND: Record<SpeechKind, string> = {
   assassin_discuss: '刺杀讨论',
   assassinate: '刺杀宣言',
   reflect: '赛后感想',
+  chat: '赛后对话',
 };
 
-const SPEAKING_ACTIONS: ActionType[] = ['propose', 'speak', 'final_team', 'evil_discuss', 'assassinate', 'reflect'];
+const SPEAKING_ACTIONS: ActionType[] = ['propose', 'speak', 'final_team', 'evil_discuss', 'assassinate', 'reflect', 'chat'];
 
 export function Timeline(props: Props) {
   const { events, players, viewer, fullView, godView, acting, live } = props;
@@ -120,6 +121,11 @@ export function Timeline(props: Props) {
               <div className="msg-head">
                 {speaker(e.seat)}
                 {label && <span className="kind">{label}</span>}
+                {e.to !== undefined && (
+                  <span className="muted">
+                    → {e.to === mySeat ? '你' : `${e.to}号 ${name(e.to)}`}
+                  </span>
+                )}
               </div>
               <div className="msg-text">{e.text}</div>
             </div>

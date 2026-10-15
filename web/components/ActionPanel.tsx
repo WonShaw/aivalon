@@ -14,11 +14,12 @@ const TITLES: Record<HumanRequest['action'], string> = {
   evil_discuss: '刺杀阶段：和同伴讨论谁是梅林',
   assassinate: '你是刺客：选择刺杀目标',
   reflect: '赛后交流：聊聊你对这局的感想',
+  chat: '赛后单独对话',
 };
 
-// 圆桌上可以点头像选的人：提名时选队员，刺杀时选目标
+// 圆桌上可以点头像选的人：提名时选队员，刺杀时选目标，赛后单独对话时选对象
 export interface SeatPick {
-  kind: 'team' | 'target';
+  kind: 'team' | 'target' | 'chat';
   label: string;
   size: number;
   seats: number[]; // 可以选的座位
@@ -183,6 +184,110 @@ export function TableActions({ act }: { act: HumanAction | null }) {
           ⚔ 提前刺杀
         </button>
       )}
+    </div>
+  );
+}
+
+// 赛后单独对话：在圆桌上点一名 AI，对他说一段话，他会公开回复。发送后对象不变，可以接着聊
+export interface PostgameChat {
+  target: number | null;
+  pick: SeatPick;
+  text: string;
+  setText: (s: string) => void;
+  busy: boolean;
+  waiting: boolean; // 赛后交流正在进行（AI 在回复，或者一轮发言还没结束），暂时不能发
+  error: string | null;
+  canSend: boolean;
+  send: () => Promise<void>;
+}
+
+export function usePostgameChat(gameId: string, token: string | null, aiSeats: number[], waiting: boolean): PostgameChat {
+  const [target, setTarget] = useState<number | null>(null);
+  const [text, setText] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const send = async () => {
+    if (!token || target === null) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await api.chat(gameId, token, target, text.trim());
+      setText('');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return {
+    target,
+    pick: {
+      kind: 'chat',
+      label: '对话对象',
+      size: 1,
+      seats: aiSeats,
+      selected: target === null ? [] : [target],
+      toggle: (seat) => setTarget(target === seat ? null : seat),
+    },
+    text,
+    setText,
+    busy,
+    waiting,
+    error,
+    canSend: !busy && !waiting && !!token && target !== null && text.trim().length > 0,
+    send,
+  };
+}
+
+export function ChatComposer({ chat, players, onClose }: { chat: PostgameChat; players: PlayerInfo[]; onClose: () => void }) {
+  // 对话框会挡住圆桌下方的座位，可以先收起来再点头像
+  const [collapsed, setCollapsed] = useState(false);
+  const name = chat.target === null ? '' : (players.find((p) => p.seat === chat.target)?.name ?? '');
+  if (collapsed) {
+    return (
+      <button className="composer-pill quiet" onClick={() => setCollapsed(false)}>
+        ✎ 赛后单独对话{chat.target !== null && ` · ${chat.target}号 ${name}`} · 展开
+      </button>
+    );
+  }
+  return (
+    <div className="composer">
+      <div className="composer-head">
+        <span className="composer-title">赛后单独对话</span>
+        <span className={`composer-hint${chat.target === null ? ' todo' : ''}`}>
+          {chat.target === null ? '在圆桌上点一名 AI 选择对话对象' : `对 ${chat.target}号 ${name} 说`}
+        </span>
+        <div className="spacer" />
+        <button className="link" onClick={() => setCollapsed(true)} title="先收起来，方便点圆桌下方的座位">
+          收起
+        </button>
+        <button className="link" onClick={onClose}>
+          关闭
+        </button>
+      </div>
+      <div className="muted small-text">对话是公开的：所有人都能看到，之后其他 AI 发言时也会看到。</div>
+      <textarea
+        autoFocus
+        value={chat.text}
+        onChange={(e) => chat.setText(e.target.value)}
+        placeholder={chat.target === null ? '先选一名 AI…' : `想对 ${name} 说什么…`}
+        rows={3}
+        maxLength={800}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && chat.canSend) void chat.send();
+        }}
+      />
+      <div className="composer-foot">
+        {chat.error && <span className="error-text">{chat.error}</span>}
+        {chat.waiting && <span className="muted hint">等当前的发言结束后再发送</span>}
+        <div className="spacer" />
+        <span className="muted hint">⌘/Ctrl + Enter 发送</span>
+        <button className="primary" disabled={!chat.canSend} onClick={() => chat.send()}>
+          发送
+        </button>
+      </div>
     </div>
   );
 }

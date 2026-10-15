@@ -25,6 +25,7 @@ function answer(r: HumanRequest, players: number): ActionSubmission {
     case 'evil_discuss': return { action: r.action, speech: '讨论' };
     case 'assassinate': return { action: r.action, ...(Math.random() < 0.5 ? { speech: '刺杀' } : {}), target: pick(r.targets!) }; // 刺杀宣言可选
     case 'reflect': return { action: r.action, speech: r.seat % 3 === 0 ? '' : '这局很好玩' }; // 每 3 个座位有一个跳过
+    case 'chat': throw new Error('only AI players are asked to chat');
   }
 }
 
@@ -112,6 +113,8 @@ async function simulate(players: number, presetName: string, prefs: RolePreferen
       throw new Error(`postgame wrong: rounds=${starts.join()} reflects=${reflects}/${expected}`);
     }
     if (game.summary().postgame !== 'done') throw new Error('postgame status not done');
+    // 赛后单独对话只能找 AI：这里全是脚本人类，任何对象都应该被拒绝
+    if (game.chatError(1, 2, '你好') === null || game.chatError(1, 1, '你好') === null) throw new Error('chat with a human was allowed');
     // 从磁盘恢复后，事件和状态都要一致
     const loaded = Game.load(store, game.id)!;
     if (loaded.events.length !== game.events.length || loaded.summary().postgame !== 'done') throw new Error('load mismatch');

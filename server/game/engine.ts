@@ -678,6 +678,43 @@ export class Game {
     return `${over.winner === 'good' ? '正义方' : '邪恶方'}获胜（${over.reason}）。全部身份：${roles}。`;
   }
 
+  // 赛后单独对话的参数检查：只能找除自己以外的 AI 说话，返回错误信息，或 null 表示可以
+  chatError(from: number, to: unknown, text: unknown): string | null {
+    if (typeof to !== 'number' || to === from || this.record.players.find((p) => p.seat === to)?.kind !== 'ai') {
+      return '只能选择一名 AI 玩家对话';
+    }
+    if (typeof text !== 'string' || !sanitizeSpeech(text)) return '请输入要说的话';
+    return null;
+  }
+
+  // 赛后单独对话：人类玩家对一名 AI 说一段话，这名 AI 回复。对话公开，其他 AI 之后发言时也能看到。
+  // 调用前要先用 chatError 检查；和一轮赛后交流一样占用赛后交流的状态，同一时间只能有一个
+  async runChat(from: number, to: number, text: string): Promise<void> {
+    const before = this.record.postgame ?? 'none';
+    // 这名 AI 还没在赛后说过话时，告诉它本局结果和全部身份
+    const recap = this.events.some((e) => e.type === 'speech' && e.seat === to && (e.kind === 'reflect' || e.kind === 'chat'))
+      ? undefined
+      : this.recap();
+    const name = this.record.players.find((p) => p.seat === from)?.name ?? `${from}号`;
+    this.abortController = new AbortController();
+    this.setPostgame('running');
+    this.emit({ type: 'speech', seat: from, kind: 'chat', to, text: sanitizeSpeech(text).slice(0, MAX_SPEECH_CHARS) }, PUBLIC);
+    try {
+      const out = await this.ask(to, 'chat', { recap, chatFrom: `${from}号「${name}」` }, Game.needSpeech, () => ({
+        action: 'chat',
+        speech: '（没有回应）',
+      }));
+      this.emit({ type: 'speech', seat: to, kind: 'chat', to: from, text: out.speech! }, PUBLIC);
+    } catch (err) {
+      if (!(err instanceof GameAborted) && !this.abortController.signal.aborted) {
+        console.error(`[game ${this.id}] chat`, err);
+      }
+    } finally {
+      // 单独对话不算一轮，结束后恢复原来的状态："赛后聊聊"还没开过的，按钮也不变成"再聊一轮"
+      this.setPostgame(before === 'running' ? 'done' : before);
+    }
+  }
+
   // 一轮赛后交流：每人按座位顺序发言一次；人类可以跳过（提交空发言）
   async runPostgame(): Promise<void> {
     const round = this.events.filter((e) => e.type === 'postgame_start').length + 1;

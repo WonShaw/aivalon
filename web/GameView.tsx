@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { describeAIConfig } from '../shared/ai.ts';
 import { seesEverything, type CreateGameResponse, type GameStatus } from '../shared/types.ts';
 import { api, createGame, loadRequest } from './client.ts';
-import { Composer, TableActions, useHumanAction } from './components/ActionPanel.tsx';
+import { ChatComposer, Composer, TableActions, useHumanAction, usePostgameChat } from './components/ActionPanel.tsx';
 import { RoleGuide } from './components/RoleGuide.tsx';
 import { RoundTable, TableLegend } from './components/RoundTable.tsx';
 import { Timeline } from './components/Timeline.tsx';
@@ -135,6 +135,18 @@ export function GameView({ gameId, token, onBack, onCreated }: Props) {
     </button>
   );
 
+  // 赛后单独对话：正常结束的对局，人类玩家可以在圆桌上选一名 AI 对话。正在轮流发言时先让位给发言框
+  const aiSeats = players.filter((p) => p.kind === 'ai' && p.seat !== mySeat).map((p) => p.seat);
+  const canChat = summary?.status === 'finished' && !!mySeat && !!token && aiSeats.length > 0;
+  const [chatOpen, setChatOpen] = useState(false);
+  const chat = usePostgameChat(gameId, token, aiSeats, postgameRunning);
+  const chatting = canChat && chatOpen && !act;
+  const chatButton = canChat && !chatOpen && !postgameRunning && (
+    <button onClick={() => setChatOpen(true)} title="选一名 AI 单独聊聊，对话是公开的">
+      单独聊聊
+    </button>
+  );
+
   const stop = async () => {
     if (!confirm(postgameRunning ? '确定要结束赛后交流吗？' : '确定要结束这局游戏吗？')) return;
     try {
@@ -200,6 +212,7 @@ export function GameView({ gameId, token, onBack, onCreated }: Props) {
           </button>
         )}
         {postgameButton}
+        {chatButton}
         {playAgainButton}
       </header>
 
@@ -250,11 +263,12 @@ export function GameView({ gameId, token, onBack, onCreated }: Props) {
                   roles={roles}
                   guesses={guesses}
                   onGuess={setGuess}
-                  pick={act?.pick}
+                  pick={act?.pick ?? (chatting ? chat.pick : null)}
                   actions={<TableActions act={act} />}
                 />
               </div>
               {act?.allowsSpeech && <Composer key={act.request.id} act={act} />}
+              {chatting && <ChatComposer chat={chat} players={players} onClose={() => setChatOpen(false)} />}
             </div>
           </section>
 
@@ -271,9 +285,10 @@ export function GameView({ gameId, token, onBack, onCreated }: Props) {
               readingSeq={voiceOn ? voice.reading : null}
               speakingSeat={voiceOn ? voice.speakingSeat : null}
             >
-              {(postgameButton || playAgainButton) && (
+              {(postgameButton || chatButton || playAgainButton) && (
                 <div className="play-again">
                   {postgameButton}
+                  {chatButton}
                   {playAgainButton}
                 </div>
               )}

@@ -54,7 +54,7 @@ export type Visibility =
   | { kind: 'players'; seats: number[] }
   | { kind: 'spectator' };
 
-export type SpeechKind = 'propose' | 'discuss' | 'final' | 'assassin_discuss' | 'assassinate' | 'reflect';
+export type SpeechKind = 'propose' | 'discuss' | 'final' | 'assassin_discuss' | 'assassinate' | 'reflect' | 'chat';
 
 export type GameEventBody =
   | { type: 'game_start'; players: PlayerInfo[]; firstLeader: number; setup: Role[] }
@@ -67,7 +67,8 @@ export type GameEventBody =
       teamSize: number;
       failsRequired: number;
     }
-  | { type: 'speech'; seat: number; kind: SpeechKind; text: string }
+  // to：赛后单独对话（kind=chat）时说话的对象
+  | { type: 'speech'; seat: number; kind: SpeechKind; text: string; to?: number }
   | { type: 'team_proposed'; leader: number; team: number[]; final: boolean }
   | {
       type: 'team_vote';
@@ -112,11 +113,12 @@ export type ActionType =
   | 'mission'
   | 'evil_discuss'
   | 'assassinate'
-  | 'reflect';
+  | 'reflect'
+  | 'chat';
 
 export type GameStatus = 'running' | 'finished' | 'aborted' | 'error';
 
-// 赛后交流的状态：还没开始 / 进行中 / 已结束（每局只能开一次）
+// 赛后交流的状态：还没开始 / 进行中（一轮发言或一次单独对话） / 已结束（可以再开）
 export type PostgameStatus = 'none' | 'running' | 'done';
 
 export interface GameSummary {
