@@ -242,16 +242,7 @@ export function usePostgameChat(gameId: string, token: string | null, aiSeats: n
 }
 
 export function ChatComposer({ chat, players, onClose }: { chat: PostgameChat; players: PlayerInfo[]; onClose: () => void }) {
-  // 对话框会挡住圆桌下方的座位，可以先收起来再点头像
-  const [collapsed, setCollapsed] = useState(false);
   const name = chat.target === null ? '' : (players.find((p) => p.seat === chat.target)?.name ?? '');
-  if (collapsed) {
-    return (
-      <button className="composer-pill quiet" onClick={() => setCollapsed(false)}>
-        ✎ 赛后单独对话{chat.target !== null && ` · ${chat.target}号 ${name}`} · 展开
-      </button>
-    );
-  }
   return (
     <div className="composer">
       <div className="composer-head">
@@ -260,9 +251,6 @@ export function ChatComposer({ chat, players, onClose }: { chat: PostgameChat; p
           {chat.target === null ? '在圆桌上点一名 AI 选择对话对象' : `对 ${chat.target}号 ${name} 说`}
         </span>
         <div className="spacer" />
-        <button className="link" onClick={() => setCollapsed(true)} title="先收起来，方便点圆桌下方的座位">
-          收起
-        </button>
         <button className="link" onClick={onClose}>
           关闭
         </button>
@@ -292,21 +280,12 @@ export function ChatComposer({ chat, players, onClose }: { chat: PostgameChat; p
   );
 }
 
-// 圆桌下方弹出的发言框，提交后随请求一起消失；可以先收起来看看局面
+// 发言框：放在右侧时间线下方，像会议里的发言输入框，不挡圆桌；提交后随请求一起消失
 export function Composer({ act }: { act: HumanAction }) {
-  const [collapsed, setCollapsed] = useState(false);
   const { action, request, early, busy, speech } = act;
   if (!act.allowsSpeech) return null;
 
   const title = early ? '提前刺杀：选择刺杀目标' : TITLES[request.action];
-  if (collapsed) {
-    return (
-      <button className="composer-pill" onClick={() => setCollapsed(false)}>
-        ✎ {title} · 展开
-      </button>
-    );
-  }
-
   const pickHint = act.picksTeam
     ? `在圆桌上点头像选 ${request.teamSize} 人（已选 ${act.team.length}）`
     : action === 'assassinate'
@@ -320,10 +299,6 @@ export function Composer({ act }: { act: HumanAction }) {
       <div className="composer-head">
         <span className="composer-title">{title}</span>
         {pickHint && <span className={`composer-hint${act.pick && act.pick.selected.length < act.pick.size ? ' todo' : ''}`}>{pickHint}</span>}
-        <div className="spacer" />
-        <button className="link" onClick={() => setCollapsed(true)} title="先收起来，看看局面">
-          收起
-        </button>
       </div>
       {early && (
         <div className="muted small-text">

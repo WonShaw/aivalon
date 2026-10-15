@@ -267,8 +267,6 @@ export function GameView({ gameId, token, onBack, onCreated }: Props) {
                   actions={<TableActions act={act} />}
                 />
               </div>
-              {act?.allowsSpeech && <Composer key={act.request.id} act={act} />}
-              {chatting && <ChatComposer chat={chat} players={players} onClose={() => setChatOpen(false)} />}
             </div>
           </section>
 
@@ -293,6 +291,9 @@ export function GameView({ gameId, token, onBack, onCreated }: Props) {
                 </div>
               )}
             </Timeline>
+            {/* 发言框固定在时间线下方，不挡圆桌 */}
+            {act?.allowsSpeech && <Composer key={act.request.id} act={act} />}
+            {chatting && <ChatComposer chat={chat} players={players} onClose={() => setChatOpen(false)} />}
           </main>
         </div>
       ) : (
