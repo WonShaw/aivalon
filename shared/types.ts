@@ -39,6 +39,7 @@ export interface PlayerInfo {
   seat: number; // 1-8
   name: string;
   kind: 'ai' | 'human';
+  avatar?: string; // 像素头像的 id（见 shared/avatars.ts）。早期的记录没有
 }
 
 // 夜晚信息在座位上的标记，例如梅林看到的邪恶方、派西维尔看到的梅林候选人
@@ -174,6 +175,7 @@ export type RolePreference = 'random' | Team | Role;
 export interface HumanSeatRequest {
   name: string;
   role: RolePreference;
+  avatar?: string; // 不填用默认头像
 }
 
 export interface CreateGameRequest {

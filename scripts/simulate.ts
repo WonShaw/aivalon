@@ -6,6 +6,12 @@ import { PRESETS, buildSetup } from '../shared/setup.ts';
 import { ROLE_TEAM, seesEverything, type ActionSubmission, type GameEvent, type HumanRequest, type RolePreference, type StreamMessage } from '../shared/types.ts';
 import { deriveBoard } from '../web/derive.ts';
 import { Game } from '../server/game/engine.ts';
+import { AI_NAMES } from '../server/ai/names.ts';
+import { AI_AVATARS, isAvatarId } from '../shared/avatars.ts';
+
+// 每个 AI 名字都有自己的头像，并且不重复
+const aiAvatars = AI_NAMES.map((n) => AI_AVATARS[n]);
+if (!aiAvatars.every(isAvatarId) || new Set(aiAvatars).size !== AI_NAMES.length) throw new Error('AI avatars missing or duplicated');
 import { GameStore } from '../server/game/store.ts';
 import { messageVisible } from '../server/game/visibility.ts';
 

@@ -5,6 +5,8 @@ import type { BoardState } from '../derive.ts';
 import { ACTION_LABEL, roleLabel, roleTone, seatHue } from '../format.ts';
 import { guessLabel, guessOptions, guessTeam, type Guess } from '../guesses.ts';
 import type { SeatPick } from './ActionPanel.tsx';
+import { PixelAvatar } from './PixelAvatar.tsx';
+import { avatarOf } from '../../shared/avatars.ts';
 
 interface Props {
   setup: Role[];
@@ -200,7 +202,10 @@ export function RoundTable({ setup, players, board, acting, speaking, viewer, ro
               }
             >
               <div className="avatar-wrap">
-                <div className="avatar">{p.seat}</div>
+                <div className="avatar pixel">
+                  <PixelAvatar id={avatarOf(p)} />
+                </div>
+                <span className="seat-no">{p.seat}</span>
                 {board.leader === p.seat && !board.gameOver && (
                   <span className="crown" title="队长">
                     ♛

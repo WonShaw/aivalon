@@ -17,6 +17,7 @@ import {
   type RolePreference,
 } from '../shared/types.ts';
 import { MAX_NAME_LENGTH, defaultHumanName, validateHumanNames } from '../shared/names.ts';
+import { AVATARS, avatarDef, defaultHumanAvatar, isAvatarId } from '../shared/avatars.ts';
 import {
   AI_EFFORTS,
   AI_MODELS,
@@ -28,6 +29,7 @@ import {
   type AIModel,
 } from '../shared/ai.ts';
 import { api, createGame, forgetGame, gameUrl, isLoopbackHost, loadSeats, type SavedSeat } from './client.ts';
+import { PixelAvatar } from './components/PixelAvatar.tsx';
 
 interface Props {
   onOpen: (gameId: string, token?: string) => void;
@@ -63,10 +65,41 @@ function loadForm(): LobbyForm {
     form.humans = form.humans.map((h: HumanSeatRequest, i: number) =>
       h.name.trim() && validateHumanNames([h.name]) ? { ...h, name: defaultHumanName(i) } : h,
     );
+    // 保存过的头像后来删掉了，换回默认
+    form.humans = form.humans.map(({ avatar, ...h }: HumanSeatRequest) => (isAvatarId(avatar) ? { ...h, avatar } : h));
     return form;
   } catch {
     return DEFAULT_FORM;
   }
+}
+
+// 人类玩家选头像：点当前头像展开所有头像
+function AvatarPicker({ value, onChange }: { value: string; onChange: (id: string) => void }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="avatar-picker">
+      <button className="avatar pixel avatar-choice" title={`头像：${avatarDef(value).name}（点击更换）`} onClick={() => setOpen(!open)}>
+        <PixelAvatar id={value} />
+      </button>
+      {open && (
+        <div className="avatar-grid">
+          {AVATARS.map((a) => (
+            <button
+              key={a.id}
+              className={`avatar pixel avatar-choice${a.id === value ? ' active' : ''}`}
+              title={a.name}
+              onClick={() => {
+                onChange(a.id);
+                setOpen(false);
+              }}
+            >
+              <PixelAvatar id={a.id} />
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 function prefLabel(p: RolePreference): string {
@@ -301,6 +334,7 @@ export function Lobby({ onOpen, onCreated, created }: Props) {
             <div className="human-rows">
               {humans.map((h, i) => (
                 <div key={i} className="human-row">
+                  <AvatarPicker value={h.avatar ?? defaultHumanAvatar(i)} onChange={(avatar) => setHuman(i, { avatar })} />
                   <input
                     value={h.name}
                     maxLength={MAX_NAME_LENGTH}

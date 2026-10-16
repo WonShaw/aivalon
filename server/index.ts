@@ -12,6 +12,7 @@ import type {
 } from '../shared/types.ts';
 import { seesEverything } from '../shared/types.ts';
 import { DEFAULT_AI_CONFIG, isAIConfig } from '../shared/ai.ts';
+import { isAvatarId } from '../shared/avatars.ts';
 import { validateHumanNames } from '../shared/names.ts';
 import { STANDARD_SETUP, validateSetup } from '../shared/setup.ts';
 import { deleteAISession } from './ai/player.ts';
@@ -144,12 +145,14 @@ async function createGame(req: IncomingMessage, res: ServerResponse): Promise<vo
   const humans: HumanSeatRequest[] = (body.humans ?? []).map((h) => ({
     name: String(h?.name ?? '').trim(),
     role: h?.role ?? 'random',
+    ...(h?.avatar === undefined ? {} : { avatar: h.avatar }),
   }));
   if (humans.length > setup.length) return json(res, 400, { error: `最多 ${setup.length} 名人类玩家` });
   const nameError = validateHumanNames(humans.map((h) => h.name));
   if (nameError) return json(res, 400, { error: nameError });
   const validPrefs = new Set<string>(['random', 'good', 'evil', ...setup]);
   if (humans.some((h) => !validPrefs.has(h.role))) return json(res, 400, { error: '选择的身份不在本局配置里' });
+  if (humans.some((h) => h.avatar !== undefined && !isAvatarId(h.avatar))) return json(res, 400, { error: '不存在的头像' });
   const ai = body.ai ?? DEFAULT_AI_CONFIG;
   if (!isAIConfig(ai)) return json(res, 400, { error: '不支持的模型或推理强度' });
 

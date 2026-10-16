@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { describeAIConfig } from '../shared/ai.ts';
+import { avatarOf } from '../shared/avatars.ts';
 import { seesEverything, type CreateGameResponse, type GameStatus } from '../shared/types.ts';
 import { api, createGame, loadRequest } from './client.ts';
 import { ChatComposer, Composer, TableActions, useHumanAction, usePostgameChat } from './components/ActionPanel.tsx';
@@ -95,7 +96,11 @@ export function GameView({ gameId, token, onBack, onCreated }: Props) {
       const saved = loadRequest(gameId);
       const req = saved
         ? { ...saved, ai: saved.ai ?? summary?.ai }
-        : { setup, ai: summary?.ai, humans: humanNames.map((name) => ({ name, role: 'random' as const })) };
+        : {
+            setup,
+            ai: summary?.ai,
+            humans: players.filter((p) => p.kind === 'human').map((p) => ({ name: p.name, role: 'random' as const, avatar: avatarOf(p) })),
+          };
       onCreated(await createGame(req));
     } catch (e) {
       alert(e instanceof Error ? e.message : String(e));

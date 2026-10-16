@@ -2,6 +2,8 @@ import { useEffect, useRef, type ReactNode } from 'react';
 import type { ActionType, GameEvent, PlayerInfo, Role, SpeechKind, Viewer } from '../../shared/types.ts';
 import { describeSetup } from '../../shared/setup.ts';
 import { ACTION_LABEL, playerName, roleLabel, roleTone, seatHue } from '../format.ts';
+import { avatarOf } from '../../shared/avatars.ts';
+import { PixelAvatar } from './PixelAvatar.tsx';
 
 interface Props {
   events: GameEvent[];
@@ -46,6 +48,15 @@ export function Timeline(props: Props) {
   const onScroll = () => {
     const el = scrollRef.current;
     if (el) stickToBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+  };
+
+  const avatar = (seat: number) => {
+    const p = players.find((x) => x.seat === seat);
+    return (
+      <div className="avatar pixel" style={{ '--hue': seatHue(seat) } as React.CSSProperties}>
+        {p ? <PixelAvatar id={avatarOf(p)} /> : seat}
+      </div>
+    );
   };
 
   const speaker = (seat: number) => {
@@ -114,9 +125,7 @@ export function Timeline(props: Props) {
           <div
             className={`msg${e.seat === mySeat ? ' mine' : ''}${e.seq === props.readingSeq && e.seat === props.speakingSeat ? ' speaking' : ''}`}
           >
-            <div className="avatar" style={{ '--hue': seatHue(e.seat) } as React.CSSProperties}>
-              {e.seat}
-            </div>
+            {avatar(e.seat)}
             <div className="msg-body">
               <div className="msg-head">
                 {speaker(e.seat)}
@@ -272,9 +281,7 @@ export function Timeline(props: Props) {
         const isHuman = players.find((p) => p.seat === seat)?.kind === 'human';
         return (
           <div key={`live-${seat}`} className="msg pending">
-            <div className="avatar" style={{ '--hue': seatHue(seat) } as React.CSSProperties}>
-              {seat}
-            </div>
+            {avatar(seat)}
             <div className="msg-body">
               <div className="msg-head">
                 {speaker(seat)}

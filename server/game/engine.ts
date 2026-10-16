@@ -1,6 +1,7 @@
 import { EventEmitter } from 'node:events';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { DEFAULT_AI_CONFIG } from '../../shared/ai.ts';
+import { AI_AVATARS, defaultHumanAvatar } from '../../shared/avatars.ts';
 import { ROLE_NAME } from '../../shared/types.ts';
 import type {
   ActionSubmission,
@@ -92,11 +93,11 @@ export class Game {
     for (const seat of seatsFrom(1, n)) {
       const h = humanSeats.indexOf(seat);
       if (h >= 0) {
-        players.push({ seat, name: req.humans[h].name, kind: 'human' });
+        players.push({ seat, name: req.humans[h].name, kind: 'human', avatar: req.humans[h].avatar ?? defaultHumanAvatar(h) });
         roles[seat] = humanRoles[h];
         humanTokens[seat] = randomBytes(16).toString('hex');
       } else {
-        players.push({ seat, name: aiNames[a], kind: 'ai' });
+        players.push({ seat, name: aiNames[a], kind: 'ai', avatar: AI_AVATARS[aiNames[a]] });
         roles[seat] = aiRoles[a];
         a++;
       }
