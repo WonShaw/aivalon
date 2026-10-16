@@ -8,7 +8,8 @@ export interface BoardState {
   proposedTeam: number[]; // 本轮当前的提名（投票后保留到下一轮开始）
   proposalFinal: boolean; // 当前提名是不是最终提名
   assassination: boolean; // 进入了刺杀阶段
-  lastVote: { votes: Record<number, 'approve' | 'reject'>; approved: boolean } | null;
+  lastVote: { votes: Record<number, 'approve' | 'reject'>; approved: boolean; seq: number } | null; // seq：这次投票的事件序号
+  onMission: boolean; // 组队通过、任务结果还没出来：队伍正在出征
   missionResults: ({ success: boolean; fails: number } | null)[];
   knownRoles: Record<number, Role>; // 当前观看者收到的全部身份信息（观众是所有人的）
   publicRoles: Record<number, Role>; // 已公开的身份（刺杀阶段的邪恶方、结束后的全部）
@@ -27,6 +28,7 @@ export function deriveBoard(events: GameEvent[], viewer: Viewer | null): BoardSt
     proposalFinal: false,
     assassination: false,
     lastVote: null,
+    onMission: false,
     missionResults: [null, null, null, null, null],
     knownRoles: {},
     publicRoles: {},
@@ -61,7 +63,7 @@ export function deriveBoard(events: GameEvent[], viewer: Viewer | null): BoardSt
         s.proposalFinal = e.final;
         break;
       case 'team_vote':
-        s.lastVote = { votes: e.votes, approved: e.approved };
+        s.lastVote = { votes: e.votes, approved: e.approved, seq: e.seq };
         break;
       case 'mission_result':
         s.missionResults[e.mission - 1] = { success: e.success, fails: e.fails };
@@ -92,6 +94,7 @@ export function deriveBoard(events: GameEvent[], viewer: Viewer | null): BoardSt
       }
     }
   }
+  s.onMission = !!s.lastVote?.approved && !s.missionResults[s.mission - 1] && !s.assassination && !s.gameOver;
   return s;
 }
 

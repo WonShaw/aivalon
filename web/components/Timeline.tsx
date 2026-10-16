@@ -3,7 +3,8 @@ import type { ActionType, GameEvent, PlayerInfo, Role, SpeechKind, Viewer } from
 import { describeSetup } from '../../shared/setup.ts';
 import { ACTION_LABEL, playerName, roleLabel, roleTone, seatHue } from '../format.ts';
 import { avatarOf } from '../../shared/avatars.ts';
-import { PixelAvatar } from './PixelAvatar.tsx';
+import { PixelArt, PixelAvatar } from './PixelAvatar.tsx';
+import { VOTE_SHIELD, VOTE_SWORD } from '../sprites.ts';
 
 interface Props {
   events: GameEvent[];
@@ -162,14 +163,36 @@ export function Timeline(props: Props) {
         const seats = Object.keys(e.votes).map(Number).sort((a, b) => a - b);
         const approve = seats.filter((s) => e.votes[s] === 'approve');
         const reject = seats.filter((s) => e.votes[s] === 'reject');
-        const list = (l: number[]) => (l.length ? l.map((s) => `${s}号`).join(' ') : '无');
+        // 每个人一个小头像加座位号
+        const list = (l: number[]) =>
+          l.length ? (
+            l.map((s) => {
+              const p = players.find((x) => x.seat === s);
+              return (
+                <span key={s} className="vote-chip" title={`${s}号 ${name(s)}`}>
+                  <span className="avatar pixel mini" style={{ '--hue': seatHue(s) } as React.CSSProperties}>
+                    {p && <PixelAvatar id={avatarOf(p)} />}
+                  </span>
+                  {s}
+                </span>
+              );
+            })
+          ) : (
+            <span className="muted">无</span>
+          );
         return (
           <div className={`vote-card ${e.approved ? 'ok' : 'bad'}`}>
             <div className="vote-title">
               投票：{approve.length} 赞成 / {reject.length} 反对 → {e.approved ? '组队成功' : '组队失败'}
             </div>
-            <div className="vote-line approve">✓ {list(approve)}</div>
-            <div className="vote-line reject">✗ {list(reject)}</div>
+            <div className="vote-line approve">
+              <PixelArt sprite={VOTE_SWORD} className="pixel-art vote-icon" />
+              {list(approve)}
+            </div>
+            <div className="vote-line reject">
+              <PixelArt sprite={VOTE_SHIELD} className="pixel-art vote-icon" />
+              {list(reject)}
+            </div>
           </div>
         );
       }

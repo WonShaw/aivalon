@@ -547,50 +547,134 @@ button.avatar-choice.active {
   font-size: clamp(12px, 2.3cqw, 18px);
   color: var(--gold);
 }
+/* 任务进度：五座塔连成一条路，出征的马车在路上走 */
+.mission-map {
+  --tw: clamp(24px, 5.4cqw, 42px); /* 塔的宽度 */
+  --tg: clamp(4px, 1cqw, 8px); /* 塔之间的空隙 */
+  width: calc(5 * var(--tw) + 4 * var(--tg));
+  padding-top: calc(var(--tw) * 0.4); /* 给塔顶的旗留出位置 */
+}
 .missions {
-  display: flex;
-  gap: clamp(4px, 1cqw, 8px);
+  display: grid;
+  grid-template-columns: repeat(5, var(--tw));
+  gap: var(--tg);
 }
 .mission {
-  width: clamp(24px, 5.4cqw, 42px);
-  height: clamp(24px, 5.4cqw, 42px);
-  border-radius: 50%;
-  border: 1.5px solid var(--line);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  font-size: clamp(11px, 2.1cqw, 16px);
-  color: var(--muted);
   position: relative;
-  background: var(--bg-2);
+  height: var(--tw);
+  color: var(--muted);
+  filter: grayscale(0.6) brightness(0.65);
+}
+.mission .pixel-art {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 .mission.current {
-  border-color: var(--gold);
   color: var(--gold);
+  filter: drop-shadow(0 0 6px rgba(255, 215, 106, 0.55));
+}
+.mission.ok,
+.mission.bad {
+  filter: none;
 }
 .mission.ok {
-  background: var(--good);
-  border-color: var(--good);
-  color: #08142a;
+  color: var(--good);
 }
 .mission.bad {
-  background: var(--evil);
-  border-color: var(--evil);
-  color: #2a0808;
+  color: var(--evil);
 }
+/* 塔顶的旗：任务结果出来时升起 */
+.mission-flag {
+  position: absolute;
+  left: 50%;
+  top: -45%;
+  width: 40%;
+  aspect-ratio: 6 / 8;
+  transform-origin: bottom left;
+  animation: flag-up 0.5s ease-out both;
+}
+@keyframes flag-up {
+  from {
+    transform: scaleY(0);
+  }
+}
+.mission-size {
+  position: absolute;
+  left: 50%;
+  bottom: -3px;
+  transform: translateX(-50%);
+  min-width: 1.4em;
+  padding: 0 3px;
+  border-radius: 4px;
+  border: 1px solid currentColor;
+  background: #1c1a14;
+  font-size: clamp(9px, 1.7cqw, 13px);
+  line-height: 1.25;
+  font-weight: 700;
+}
+/* 第 4 个任务需要 2 张失败票：写在塔顶，插旗后就不显示了 */
 .mission-note {
   position: absolute;
-  bottom: -14px;
+  left: 50%;
+  top: -11px;
+  transform: translateX(-50%);
   font-size: 9px;
+  line-height: 1;
   color: var(--muted);
   white-space: nowrap;
+}
+.road {
+  position: relative;
+  height: calc(var(--tw) * 0.75);
+  margin-top: 4px;
+}
+/* 土路：一条虚线 */
+.road::before {
+  content: '';
+  position: absolute;
+  left: -6%;
+  right: -2%;
+  bottom: 2px;
+  height: 2px;
+  background: repeating-linear-gradient(90deg, #6b5a3a 0 6px, transparent 6px 10px);
+}
+/* --from / --to 是塔的序号（-0.6 是路的起点），换算成塔的中心位置 */
+.wagon {
+  position: absolute;
+  bottom: 0;
+  width: calc(var(--tw) * 1.3);
+  aspect-ratio: 22 / 12;
+  left: calc(var(--to) * (var(--tw) + var(--tg)) + var(--tw) / 2);
+  transform: translateX(-50%);
+}
+.wagon.moving {
+  animation: drive 5s ease-out both;
+}
+@keyframes drive {
+  from {
+    left: calc(var(--from) * (var(--tw) + var(--tg)) + var(--tw) / 2);
+  }
+}
+.wagon .frames {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+/* 到站后原地等结果：车身轻轻颠簸 */
+.wagon.moving .frames {
+  animation: bump 0.5s steps(2) infinite;
+}
+@keyframes bump {
+  50% {
+    transform: translateY(-1px);
+  }
 }
 .attempts {
   display: flex;
   align-items: center;
   gap: 4px;
-  margin-top: 12px;
+  margin-top: 2px;
 }
 .table-winner {
   font-weight: 700;
@@ -650,28 +734,65 @@ button.avatar-choice.active {
   display: flex;
   gap: clamp(4px, 1cqw, 8px);
 }
+/* 提名的队员挂在盾牌上：初步提名银边，最终提名和你在选的金边，否决和失败红边，成功蓝边 */
 .slot {
+  position: relative;
   width: clamp(26px, 5.8cqw, 44px);
-  height: clamp(26px, 5.8cqw, 44px);
-  border-radius: 50%;
   padding: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 700;
-  font-size: clamp(12px, 2.2cqw, 17px);
-  /* 和头像一样的样子：在提名列表里就说明在队伍里，不需要再加金色光圈 */
-  background: hsl(var(--hue) 45% 28%);
-  color: hsl(var(--hue) 80% 85%);
-  border: 1px solid hsl(var(--hue) 45% 42%);
+  border: none;
+  background: none;
 }
 .slot:disabled {
   opacity: 1;
   cursor: default;
 }
-.slot.empty {
-  background: transparent;
-  border: 1.5px dashed var(--line);
+.shield {
+  --shield: polygon(0% 0%, 100% 0%, 100% 62.5%, 92.86% 62.5%, 92.86% 75%, 85.71% 75%, 85.71% 81.25%, 78.57% 81.25%, 78.57% 87.5%, 64.29% 87.5%, 64.29% 93.75%, 57.14% 93.75%, 57.14% 100%, 42.86% 100%, 42.86% 93.75%, 35.71% 93.75%, 35.71% 87.5%, 21.43% 87.5%, 21.43% 81.25%, 14.29% 81.25%, 14.29% 75%, 7.14% 75%, 7.14% 62.5%, 0% 62.5%);
+  display: block;
+  aspect-ratio: 14 / 16;
+  padding: 2px;
+  clip-path: var(--shield);
+  background: var(--rim, #8a94a0);
+  animation: rise 0.18s ease-out;
+}
+.shield-inner {
+  display: block;
+  width: 100%;
+  height: 100%;
+  clip-path: var(--shield);
+  background: hsl(var(--hue) 45% 28%);
+}
+.shield.empty {
+  --rim: #5e5843;
+  animation: none;
+}
+.shield.empty .shield-inner {
+  background: #1c1a14;
+}
+.slots.pick,
+.slots.final {
+  --rim: var(--gold);
+}
+.slots.good {
+  --rim: var(--good);
+}
+.slots.evil {
+  --rim: var(--evil);
+}
+.slot-no {
+  position: absolute;
+  top: -5px;
+  left: -5px;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 2px;
+  border-radius: 8px;
+  background: var(--panel);
+  border: 1px solid hsl(var(--hue) 45% 50%);
+  color: hsl(var(--hue) 80% 85%);
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 13px;
 }
 .table-actions {
   display: flex;
@@ -865,15 +986,27 @@ button.early-assassinate:hover:not(:disabled) {
   line-height: 15px;
   text-align: center;
 }
-.crown {
+/* 队长旗：插在头像右上角，换队长时从下往上升起 */
+.leader-banner {
   position: absolute;
-  top: -17px;
-  left: 50%;
-  transform: translateX(-50%);
-  color: #ffd76a;
-  font-size: 18px;
-  line-height: 1;
-  text-shadow: 0 0 8px rgba(255, 200, 80, 0.8);
+  right: -13px;
+  top: -20px;
+  width: 20px;
+  height: 24px;
+  transform-origin: bottom left;
+  animation: banner-up 0.4s ease-out both;
+  filter: drop-shadow(0 0 4px rgba(255, 120, 80, 0.5));
+}
+.leader-banner .frames {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+@keyframes banner-up {
+  from {
+    transform: scaleY(0.2);
+    opacity: 0;
+  }
 }
 .team-mark {
   position: absolute;
@@ -902,8 +1035,14 @@ button.early-assassinate:hover:not(:disabled) {
   align-items: center;
   gap: 4px;
 }
-.legend-crown {
-  color: #ffd76a;
+.legend-icon {
+  display: inline-block;
+  width: 12px;
+  height: 14px;
+}
+.legend-icon .pixel-art {
+  width: 100%;
+  height: 100%;
 }
 .legend-ring {
   width: 10px;
@@ -918,27 +1057,58 @@ button.early-assassinate:hover:not(:disabled) {
   outline: 1.5px solid var(--gold);
   background: rgba(214, 178, 94, 0.25);
 }
-.vote-dot {
+.vote-token {
   position: absolute;
-  right: -7px;
-  bottom: -3px;
-  width: 17px;
-  height: 17px;
+  right: -8px;
+  bottom: -5px;
+  width: 20px;
+  height: 20px;
+}
+.vote-token > span {
+  position: absolute;
+  inset: 0;
   border-radius: 50%;
-  font-size: 10px;
-  font-weight: 700;
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 2px solid var(--bg);
 }
-.vote-dot.approve {
+.vote-back {
+  background: #2a2418;
+  border: 1.5px solid var(--gold);
+  animation: flip-out 0.9s ease-in both;
+}
+.vote-face {
+  animation: flip-in 0.9s ease-out both;
+}
+.vote-face .pixel-art {
+  width: 14px;
+  height: 14px;
+}
+.vote-token.approve .vote-face {
   background: var(--ok);
-  color: #06210f;
 }
-.vote-dot.reject {
+.vote-token.reject .vote-face {
   background: var(--evil);
-  color: #2a0808;
+}
+@keyframes flip-out {
+  0%,
+  40% {
+    transform: scaleX(1);
+  }
+  60%,
+  100% {
+    transform: scaleX(0);
+  }
+}
+@keyframes flip-in {
+  0%,
+  60% {
+    transform: scaleX(0);
+  }
+  80%,
+  100% {
+    transform: scaleX(1);
+  }
 }
 .seat-name {
   font-weight: 600;
@@ -1309,7 +1479,26 @@ button.early-assassinate:hover:not(:disabled) {
   margin-bottom: 6px;
 }
 .vote-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
   font-size: 12px;
+  padding: 2px 0;
+}
+.vote-icon {
+  width: 14px;
+  height: 14px;
+}
+.vote-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-weight: 600;
+}
+.avatar.mini {
+  width: 20px;
+  height: 20px;
 }
 .vote-line.approve {
   color: var(--ok);
@@ -1511,5 +1700,66 @@ button.early-assassinate:hover:not(:disabled) {
   }
   .seat-sub:not(.acting-text) {
     display: none;
+  }
+}
+
+/* ---------- 像素图 ---------- */
+.pixel-art {
+  display: block;
+}
+/* 两帧动画：两帧叠在一起轮流显示，不动的时候只显示第一帧 */
+.frames {
+  position: relative;
+  display: inline-block;
+}
+.frames .pixel-art {
+  width: 100%;
+  height: 100%;
+}
+.frames .frame-1 {
+  position: absolute;
+  inset: 0;
+  visibility: hidden;
+}
+.frames.animate .frame-0 {
+  animation: frame-a 0.5s steps(1) infinite;
+}
+.frames.animate .frame-1 {
+  animation: frame-b 0.5s steps(1) infinite;
+}
+.leader-banner .frames.animate .pixel-art {
+  animation-duration: 1s;
+}
+@keyframes frame-a {
+  0% {
+    visibility: visible;
+  }
+  50% {
+    visibility: hidden;
+  }
+}
+@keyframes frame-b {
+  0% {
+    visibility: hidden;
+  }
+  50% {
+    visibility: visible;
+  }
+}
+/* 系统设置了减少动态效果：只显示静态画面 */
+@media (prefers-reduced-motion: reduce) {
+  .frames.animate .frame-0,
+  .frames.animate .frame-1,
+  .wagon.moving,
+  .wagon.moving .frames,
+  .leader-banner,
+  .mission-flag,
+  .vote-face,
+  .shield {
+    animation: none;
+  }
+  .frames.animate .frame-1,
+  .vote-back {
+    visibility: hidden;
   }
 }
