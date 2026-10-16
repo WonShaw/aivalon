@@ -1112,8 +1112,29 @@ button.early-assassinate:hover:not(:disabled) {
   line-height: 15px;
   text-align: center;
 }
-/* 队长旗：插在头像右上角，换队长时从下往上升起 */
-.leader-banner {
+/* 队长的金冠：在头像正上方，换队长时从上面落下来 */
+.leader-crown {
+  position: absolute;
+  left: 50%;
+  top: -13px;
+  width: 20px;
+  height: 11px;
+  transform: translateX(-50%);
+  animation: crown-drop 0.35s ease-out both;
+  filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.7)) drop-shadow(0 0 4px rgba(255, 210, 90, 0.55));
+}
+.leader-crown .pixel-art {
+  width: 100%;
+  height: 100%;
+}
+@keyframes crown-drop {
+  from {
+    transform: translate(-50%, -8px);
+    opacity: 0;
+  }
+}
+/* 提名的队员：右上角插一面旗，被提名时从下往上升起 */
+.team-banner {
   position: absolute;
   right: -13px;
   top: -20px;
@@ -1123,7 +1144,7 @@ button.early-assassinate:hover:not(:disabled) {
   animation: banner-up 0.4s ease-out both;
   filter: drop-shadow(0 0 4px rgba(255, 120, 80, 0.5));
 }
-.leader-banner .frames {
+.team-banner .frames {
   display: block;
   width: 100%;
   height: 100%;
@@ -1133,25 +1154,6 @@ button.early-assassinate:hover:not(:disabled) {
     transform: scaleY(0.2);
     opacity: 0;
   }
-}
-/* 提名的队员：右上角的小三角旗，比队长旗小 */
-.team-pennant {
-  position: absolute;
-  right: -9px;
-  top: -15px;
-  width: 14px;
-  height: 16px;
-  transform-origin: bottom left;
-  animation: banner-up 0.4s ease-out both;
-  filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.85));
-}
-.team-pennant .frames {
-  display: block;
-  width: 100%;
-  height: 100%;
-}
-.team-pennant .frames.animate .pixel-art {
-  animation-duration: 1.2s;
 }
 .table-legend {
   display: flex;
@@ -1839,7 +1841,7 @@ button.early-assassinate:hover:not(:disabled) {
 .frames.animate .frame-1 {
   animation: frame-b 0.5s steps(1) infinite;
 }
-.leader-banner .frames.animate .pixel-art {
+.team-banner .frames.animate .pixel-art {
   animation-duration: 1s;
 }
 @keyframes frame-a {
@@ -1864,8 +1866,8 @@ button.early-assassinate:hover:not(:disabled) {
   .frames.animate .frame-1,
   .wagon.moving,
   .wagon.moving .frames,
-  .leader-banner,
-  .team-pennant,
+  .leader-crown,
+  .team-banner,
   .torch-glow,
   .mission-flag,
   .vote-face,

@@ -1,4 +1,4 @@
-// 圆桌上用到的像素图：队长旗、投票牌、任务据点、旗子、马车。画法和头像一样（shared/avatars.ts）：
+// 圆桌上用到的像素图：队长的金冠、队员的旗、投票牌、任务据点、旗子、马车。画法和头像一样（shared/avatars.ts）：
 // 每个字符一个像素，按调色板上色，"." 透明。多帧的用来做简单的帧动画
 import { BASE_PALETTE } from '../shared/avatars.ts';
 
@@ -9,7 +9,7 @@ export interface Sprite {
 
 const sprite = (palette: Record<string, string>, rows: string[]): Sprite => ({ palette: { ...BASE_PALETTE, ...palette }, rows });
 
-// 队长旗：潘德拉贡的红底金龙旗，两帧飘动
+// 出征队员的旗：潘德拉贡的红底金龙旗，两帧飘动
 const BANNER_PALETTE = { p: '#8a5a2b' };
 export const BANNER: Sprite[] = [
   sprite(BANNER_PALETTE, [
@@ -42,34 +42,14 @@ export const BANNER: Sprite[] = [
   ]),
 ];
 
-// 出征队员的小三角旗：和队长旗同样的红色，比队长旗小、形状不同；两帧飘动
-const PENNANT_PALETTE = { p: '#8a5a2b' };
-export const PENNANT: Sprite[] = [
-  sprite(PENNANT_PALETTE, [
-    'g........',
-    'prrr.....',
-    'prrrrr...',
-    'prrrrrrrr',
-    'pRRRRR...',
-    'pRRR.....',
-    'p........',
-    'p........',
-    'p........',
-    'p........',
-  ]),
-  sprite(PENNANT_PALETTE, [
-    'g........',
-    'prrr.....',
-    'prrrrr...',
-    'prrrrrrr.',
-    'pRRRRRRRR',
-    'pRRR.....',
-    'p........',
-    'p........',
-    'p........',
-    'p........',
-  ]),
-];
+// 队长的金冠：简单的一圈金色王冠，三个尖，放在头像正上方
+export const CROWN = sprite({}, [
+  'g...g...g',
+  'gg.ggg.gg',
+  'ggggggggg',
+  'gwggggggg',
+  'GGGGGGGGG',
+]);
 
 // 圆桌四角的火把：火苗两帧闪动。平时和正义方获胜时是橙色的火，刺杀阶段和邪恶方获胜时变红
 export type TableMood = 'normal' | 'blood' | 'good' | 'evil';

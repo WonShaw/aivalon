@@ -7,7 +7,7 @@ import { guessLabel, guessOptions, guessTeam, type Guess } from '../guesses.ts';
 import type { SeatPick } from './ActionPanel.tsx';
 import { PixelArt, PixelAvatar, PixelFrames } from './PixelAvatar.tsx';
 import { TableTop } from './TableTop.tsx';
-import { BANNER, FLAG_EVIL, FLAG_GOOD, PENNANT, TOWER, VOTE_SHIELD, VOTE_SWORD, WAGON, torch, type TableMood } from '../sprites.ts';
+import { BANNER, CROWN, FLAG_EVIL, FLAG_GOOD, TOWER, VOTE_SHIELD, VOTE_SWORD, WAGON, torch, type TableMood } from '../sprites.ts';
 import { avatarOf } from '../../shared/avatars.ts';
 
 interface Props {
@@ -266,15 +266,15 @@ export function RoundTable({ setup, players, board, acting, speaking, viewer, ro
                   <PixelAvatar id={avatarOf(p)} />
                 </div>
                 <span className="seat-no">{p.seat}</span>
+                {/* 队长：头像正上方一顶金冠；提名的队员：右上角一面旗。队长也在队伍里时两个都有，不重叠 */}
                 {isLeader && (
-                  <span className="leader-banner" title="队长">
-                    <PixelFrames frames={BANNER} className="animate" />
+                  <span className="leader-crown" title="队长">
+                    <PixelArt sprite={CROWN} />
                   </span>
                 )}
-                {/* 提名的队员：右上角一面小三角旗；队长只插队长旗 */}
-                {team.includes(p.seat) && !isLeader && (
-                  <span className="team-pennant" title="在本轮提名的队伍里">
-                    <PixelFrames frames={PENNANT} className="animate" />
+                {team.includes(p.seat) && (
+                  <span className="team-banner" title="在本轮提名的队伍里">
+                    <PixelFrames frames={BANNER} className="animate" />
                   </span>
                 )}
                 {vote && (
@@ -321,13 +321,13 @@ export function TableLegend() {
     <div className="table-legend">
       <span>
         <span className="legend-icon">
-          <PixelArt sprite={BANNER[0]} />
+          <PixelArt sprite={CROWN} />
         </span>
         队长
       </span>
       <span>
         <span className="legend-icon">
-          <PixelArt sprite={PENNANT[0]} />
+          <PixelArt sprite={BANNER[0]} />
         </span>
         提名的队伍
       </span>
