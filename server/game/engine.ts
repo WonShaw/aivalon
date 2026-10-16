@@ -72,7 +72,7 @@ export class Game {
   private readonly pendingHumans = new Map<number, PendingHuman>();
   private abortController = new AbortController(); // 当前阶段（对局 / 赛后交流）的中止信号
   private phase: 'play' | 'assassination' | 'over' = 'play';
-  private early: { seat: number; speech?: string } | null = null; // 刺客发起的提前刺杀
+  private earlySeat: number | null = null; // 发起提前刺杀的刺客
   private readonly inflight = new Set<Promise<ActionSubmission>>(); // 还没结束的询问
   private paused = false; // 调试模式下的暂停
   private readonly resumeWaiters = new Set<() => void>(); // 暂停期间等着发起调用的 AI
@@ -242,11 +242,11 @@ export class Game {
     this.pendingHumans.clear();
   }
 
-  // 刺客在组队和任务阶段轮到自己行动时，可以不做要求的动作，改为提交 assassinate 发起提前刺杀，
+  // 刺客在组队和任务阶段轮到自己行动时，可以不做要求的动作，改为提交 assassinate 发起提前刺杀（其他字段都忽略），
   // 之后直接进入刺杀阶段（邪恶方亮明身份并讨论，最后由刺客选目标）
   private canAssassinateEarly(seat: number): boolean {
     return (
-      this.record.status === 'running' && this.phase === 'play' && this.early === null && this.record.roles[seat] === 'assassin'
+      this.record.status === 'running' && this.phase === 'play' && this.earlySeat === null && this.record.roles[seat] === 'assassin'
     );
   }
 
@@ -255,8 +255,8 @@ export class Game {
   }
 
   // 记下提前刺杀并取消其他人类玩家还没完成的请求；正在思考的 AI 不打断，等它们做完（结果作废）再结算
-  private declareEarly(seat: number, o: ActionSubmission): void {
-    this.early = { seat, speech: o.speech };
+  private declareEarly(seat: number): void {
+    this.earlySeat = seat;
     for (const [s, pending] of this.pendingHumans) {
       this.broadcast({ kind: 'request_done', seat: s, id: pending.request.id });
       pending.reject(new EarlyAssassination());
@@ -308,7 +308,7 @@ export class Game {
   private checkAborted(): void {
     if (this.abortController.signal.aborted) throw new GameAborted();
     // 发起提前刺杀后，组队和任务里不再开始新的调用
-    if (this.early !== null && this.phase === 'play') throw new EarlyAssassination();
+    if (this.earlySeat !== null && this.phase === 'play') throw new EarlyAssassination();
   }
 
   private setActing(seat: number, action: ActionType, active: boolean): void {
@@ -333,7 +333,7 @@ export class Game {
     this.inflight.add(task);
     try {
       const out = await task;
-      if (this.isEarlyAssassination(seat, action, out)) this.declareEarly(seat, out);
+      if (this.isEarlyAssassination(seat, action, out)) this.declareEarly(seat);
       this.checkAborted(); // 等待期间刺客发起了提前刺杀，这次的结果作废
       return out;
     } finally {
@@ -553,10 +553,10 @@ export class Game {
     try {
       return await this.playMissions();
     } catch (err) {
-      if (this.early === null || this.abortController.signal.aborted) throw err;
+      if (this.earlySeat === null || this.abortController.signal.aborted) throw err;
       // 等还在思考的 AI 做完再结算，之后它们还要被问话，同一个 AI 会话不能同时有两个调用
       await Promise.allSettled([...this.inflight]);
-      return this.assassination(this.early);
+      return this.assassination(this.earlySeat);
     }
   }
 
@@ -674,16 +674,15 @@ export class Game {
     return success;
   }
 
-  // 正义方完成 3 个任务、或者刺客提前发起刺杀（early）后进入刺杀：邪恶方亮明身份并讨论，最后由刺客决定
-  private async assassination(early?: { seat: number; speech?: string }): Promise<Team> {
+  // 正义方完成 3 个任务、或者刺客提前发起刺杀（declaredBy）后进入刺杀：邪恶方亮明身份并讨论，最后由刺客决定
+  private async assassination(declaredBy?: number): Promise<Team> {
     this.phase = 'assassination';
     const { roles } = this.record;
     const evil = this.seatsFrom(1)
       .filter((s) => isEvil(roles[s]))
       .map((seat) => ({ seat, role: roles[seat] }));
     const assassin = evil.find((e) => e.role === 'assassin')!.seat;
-    this.emit({ type: 'assassination_start', evil, declaredBy: early?.seat }, PUBLIC);
-    if (early?.speech?.trim()) this.emit({ type: 'speech', seat: assassin, kind: 'assassinate', text: early.speech }, PUBLIC);
+    this.emit({ type: 'assassination_start', evil, declaredBy }, PUBLIC);
 
     // 刺客先发言，然后其他邪恶方玩家发言，最后刺客做决定
     const order = [assassin, ...evil.map((e) => e.seat).filter((s) => s !== assassin)];
@@ -712,7 +711,7 @@ export class Game {
     if (decision.speech?.trim()) this.emit({ type: 'speech', seat: assassin, kind: 'assassinate', text: decision.speech }, PUBLIC);
 
     const target = decision.target!;
-    const prefix = early ? '提前刺杀：' : '';
+    const prefix = declaredBy ? '提前刺杀：' : '';
     const hit = this.record.roles[target] === 'merlin';
     this.emit({ type: 'assassination', assassin, target, targetRole: this.record.roles[target], hit }, PUBLIC);
     return hit

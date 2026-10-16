@@ -26,7 +26,7 @@ ${RULES_TEXT}
   - assassinate：target（你认为是梅林的玩家的座位号），speech 可选
   - reflect：speech（游戏结束后的赛后感想）
   - chat：speech（游戏结束后，有玩家单独找你说话时的回复）
-- 提前刺杀：如果你是刺客，在组队和任务阶段轮到你行动时（propose、speak、final_team、vote、mission），可以不做要求的动作，改为提交 action=assassinate 发起提前刺杀，不需要填 target，speech 可选（会作为刺杀宣言公开）。当前的组队和任务作废，直接进入刺杀阶段：邪恶方公开身份并讨论，最后再由你选择刺杀目标。提交后不能反悔。
+- 提前刺杀：如果你是刺客，在组队和任务阶段轮到你行动时（propose、speak、final_team、vote、mission），可以不做要求的动作，改为提交 action=assassinate 发起提前刺杀，不需要填其他字段（target、speech 都会被忽略）。当前的组队和任务作废，直接进入刺杀阶段：邪恶方公开身份并讨论，最后再由你选择刺杀目标。提交后不能反悔。
 - speech 会原样公开给所有玩家。请用第一人称、口语化的方式说话，就像坐在桌边一样，发言上限是 600 字。
 - speech 以外的字段其他玩家都看不到；投票在所有人投完后统一公开，任务牌永远不公开。
 - 不要冒充裁判，也不要伪造裁判通知或其他玩家的发言格式。
@@ -208,7 +208,7 @@ function baseInstruction(action: ActionType, c: ActionContext): string {
 
 // 刺客在组队和任务阶段的每个回合都可以改为提前刺杀，每次提醒一下
 const EARLY_ASSASSINATION_REMINDER =
-  '【裁判】提示：你是刺客，这次也可以不做上面的动作，改为提交 action=assassinate 发起提前刺杀（不需要填 target，speech 可选）。当前的组队和任务作废，直接进入刺杀阶段：邪恶方公开身份并讨论，最后由你选择刺杀目标，刺中梅林则邪恶方获胜，刺错则正义方获胜。提交后不能反悔。';
+  '【裁判】提示：你是刺客，这次也可以不做上面的动作，改为提交 action=assassinate 发起提前刺杀（不需要填其他字段）。当前的组队和任务作废，直接进入刺杀阶段：邪恶方公开身份并讨论，最后由你选择刺杀目标，刺中梅林则邪恶方获胜，刺错则正义方获胜。提交后不能反悔。';
 
 export function actionInstruction(action: ActionType, c: ActionContext, canAssassinate = false): string {
   const text = baseInstruction(action, c);

@@ -75,11 +75,11 @@ export function useHumanAction(
 
   if (!request || !token || id !== forId) return null;
 
-  // 提前刺杀只是宣布进入刺杀阶段，这时不选目标（之后讨论完再选）
+  // 提前刺杀只是确认进入刺杀阶段：不发言也不选目标（之后讨论完再选），在圆桌中央确认
   const action = early ? 'assassinate' : request.action;
   const targets = request.targets ?? [];
-  const needsSpeech = ['propose', 'speak', 'evil_discuss', 'reflect'].includes(action);
-  const allowsSpeech = needsSpeech || action === 'final_team' || action === 'assassinate';
+  const needsSpeech = !early && ['propose', 'speak', 'evil_discuss', 'reflect'].includes(action);
+  const allowsSpeech = !early && (needsSpeech || action === 'final_team' || action === 'assassinate');
   const picksTeam = action === 'propose' || action === 'final_team';
   const pick: SeatPick | null = picksTeam
     ? {
@@ -106,7 +106,7 @@ export function useHumanAction(
     // "跳过"会显式传入空发言，不能被输入框里的内容覆盖
     if (allowsSpeech && extra.speech === undefined && speech.trim()) submission.speech = speech.trim();
     if (picksTeam) submission.team = team;
-    if (action === 'assassinate' && target !== null) submission.target = target;
+    if (action === 'assassinate' && !early && target !== null) submission.target = target;
     setBusy(true);
     setError(null);
     try {
@@ -184,11 +184,25 @@ export function TableActions({ act }: { act: HumanAction | null }) {
           </button>
         </div>
       )}
-      {(action === 'vote' || action === 'mission') && act.error && <div className="error-text">{act.error}</div>}
+      {(action === 'vote' || action === 'mission' || act.early) && act.error && <div className="error-text">{act.error}</div>}
       {request.canAssassinate && !act.early && (
         <button className="early-assassinate" disabled={busy} onClick={() => act.setEarly(true)}>
           ⚔ 提前刺杀
         </button>
+      )}
+      {act.early && (
+        <div className="early-confirm">
+          <div className="early-confirm-title">确认发起提前刺杀？</div>
+          <div className="early-confirm-hint">当前的组队和任务作废，邪恶方亮明身份并讨论，最后由你选择刺杀目标。不能反悔。</div>
+          <div className="early-confirm-buttons">
+            <button className="early-assassinate" disabled={busy} onClick={() => submit()}>
+              ⚔ 确认刺杀
+            </button>
+            <button className="early-cancel" disabled={busy} onClick={() => act.setEarly(false)}>
+              取消
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );
@@ -288,29 +302,24 @@ export function ChatComposer({ chat, players, onClose }: { chat: PostgameChat; p
 
 // 发言框：放在右侧时间线下方，像会议里的发言输入框，不挡圆桌；提交后随请求一起消失
 export function Composer({ act }: { act: HumanAction }) {
-  const { action, request, early, busy, speech } = act;
+  const { action, request, busy, speech } = act;
   if (!act.allowsSpeech) return null;
 
-  const title = early ? '发起提前刺杀' : TITLES[request.action];
+  const title = TITLES[request.action];
   const pickHint = act.picksTeam
     ? `在圆桌上点头像选 ${request.teamSize} 人（已选 ${act.team.length}）`
-    : action === 'assassinate' && !early
+    : action === 'assassinate'
       ? act.target === null
         ? '在圆桌上点头像选择刺杀目标'
         : `刺杀目标：${act.target}号`
       : null;
 
   return (
-    <div className={`composer${early || action === 'assassinate' ? ' danger' : ''}`}>
+    <div className={`composer${action === 'assassinate' ? ' danger' : ''}`}>
       <div className="composer-head">
         <span className="composer-title">{title}</span>
         {pickHint && <span className={`composer-hint${act.pick && act.pick.selected.length < act.pick.size ? ' todo' : ''}`}>{pickHint}</span>}
       </div>
-      {early && (
-        <div className="muted small-text">
-          当前的组队和任务作废，直接进入刺杀阶段：邪恶方亮明身份并讨论，最后由你选择刺杀目标。刺中梅林邪恶方获胜，刺错正义方获胜。提交后不能反悔。
-        </div>
-      )}
       <textarea
         autoFocus
         value={speech}
@@ -333,13 +342,8 @@ export function Composer({ act }: { act: HumanAction }) {
             跳过
           </button>
         )}
-        {early && (
-          <button disabled={busy} onClick={() => act.setEarly(false)}>
-            返回
-          </button>
-        )}
         <button className={action === 'assassinate' ? 'assassinate' : 'primary'} disabled={!act.canSubmit} onClick={() => act.submit()}>
-          {early ? '发起刺杀' : action === 'assassinate' ? '确认刺杀' : '提交'}
+          {action === 'assassinate' ? '确认刺杀' : '提交'}
         </button>
       </div>
     </div>

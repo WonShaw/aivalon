@@ -1000,6 +1000,32 @@ button.early-assassinate:hover:not(:disabled) {
   background: #4a1a1a;
   color: #ff8a8a;
 }
+/* 提前刺杀的确认：替换掉圆桌中央原来的操作 */
+.early-confirm {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  text-align: center;
+}
+.early-confirm-title {
+  font-weight: 700;
+  font-size: clamp(13px, 2.3cqw, 18px);
+  color: var(--evil);
+}
+.early-confirm-hint {
+  max-width: 220px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.early-confirm-buttons {
+  display: flex;
+  gap: 8px;
+}
+button.early-cancel {
+  font-size: 12px;
+  padding: 1px 10px;
+}
 /* 圆桌较小时（手机、窄窗口）中央放不下全部内容，收紧间距和尺寸，提示文字靠发光和实色按钮代替 */
 @container (max-width: 520px) {
   .table-center {
@@ -1025,6 +1051,9 @@ button.early-assassinate:hover:not(:disabled) {
   .table-actions .big-buttons button {
     padding: 2px 4px 4px;
     font-size: 13px;
+  }
+  .early-confirm-hint {
+    display: none;
   }
   button.early-assassinate {
     font-size: 11px;
