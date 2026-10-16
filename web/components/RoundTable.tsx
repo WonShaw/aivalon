@@ -6,7 +6,8 @@ import { ACTION_LABEL, roleLabel, roleTone, seatHue } from '../format.ts';
 import { guessLabel, guessOptions, guessTeam, type Guess } from '../guesses.ts';
 import type { SeatPick } from './ActionPanel.tsx';
 import { PixelArt, PixelAvatar, PixelFrames } from './PixelAvatar.tsx';
-import { BANNER, FLAG_EVIL, FLAG_GOOD, TOWER, VOTE_SHIELD, VOTE_SWORD, WAGON } from '../sprites.ts';
+import { TableTop } from './TableTop.tsx';
+import { BANNER, FLAG_EVIL, FLAG_GOOD, PENNANT, TOWER, VOTE_SHIELD, VOTE_SWORD, WAGON, torch, type TableMood } from '../sprites.ts';
 import { avatarOf } from '../../shared/avatars.ts';
 
 interface Props {
@@ -63,8 +64,8 @@ export function RoundTable({ setup, players, board, acting, speaking, viewer, ro
                 ? 'final'
                 : undefined,
         };
-  // 选刺杀目标时不再显示提名的队伍（提前刺杀时当前的组队作废），只突出目标
-  const team = pick ? (pick.kind === 'team' ? pick.selected : []) : board.proposedTeam;
+  // 选刺杀目标时不再显示提名的队伍（提前刺杀时当前的组队作废），只突出目标；游戏结束后也不再标出
+  const team = pick ? (pick.kind === 'team' ? pick.selected : []) : board.gameOver ? [] : board.proposedTeam;
 
   // 出征的马车：停在最后一个已完成的据点下面（还没完成过就在路的起点）；队伍出征时从那里驶向当前任务的据点，
   // 到了就原地等结果。不按固定时长"到站"，免得从快慢看出什么
@@ -73,9 +74,26 @@ export function RoundTable({ setup, players, board, acting, speaking, viewer, ro
   const parked = lastDone >= 0 ? lastDone : -0.6;
   const wagonTo = board.onMission ? board.mission - 1 : parked;
 
+  // 氛围：刺杀阶段火把和桌面变红，游戏结束后换成获胜一方的颜色
+  const mood: TableMood = board.gameOver ? board.gameOver.winner : board.assassination ? 'blood' : 'normal';
+  const torchFrames = torch(mood);
+
   return (
     <div className={`table-wrap seats-${players.length}`}>
       <div className="table">
+        <TableTop
+          seats={players.length}
+          leader={board.gameOver || board.assassination ? null : board.leader}
+          team={team}
+          mood={mood}
+        />
+        {/* 四角的火把 */}
+        {['nw', 'ne', 'sw', 'se'].map((corner) => (
+          <span key={corner} className={`torch ${corner} ${mood}`}>
+            <span className="torch-glow" />
+            <PixelFrames frames={torchFrames} className="animate" />
+          </span>
+        ))}
         <div className="table-center">
           <div className="table-title">
             {board.gameOver ? '游戏结束' : board.assassination ? '刺杀阶段' : `第 ${board.mission} 个任务`}
@@ -217,9 +235,9 @@ export function RoundTable({ setup, players, board, acting, speaking, viewer, ro
           const guess = guesses[p.seat];
           const guessable = canGuess(p.seat);
           const pickable = !!pick?.seats.includes(p.seat);
+          const isLeader = board.leader === p.seat && !board.gameOver && !board.assassination; // 刺杀阶段没有队长
           const classes = ['seat'];
           if (act || speakingNow) classes.push('acting');
-          if (team.includes(p.seat)) classes.push('in-team');
           if (pick?.kind === 'target' && pick.selected.includes(p.seat)) classes.push('targeted');
           if (pick?.kind === 'chat' && pick.selected.includes(p.seat)) classes.push('chat-target');
           if (pickable) classes.push('pickable');
@@ -248,14 +266,15 @@ export function RoundTable({ setup, players, board, acting, speaking, viewer, ro
                   <PixelAvatar id={avatarOf(p)} />
                 </div>
                 <span className="seat-no">{p.seat}</span>
-                {board.leader === p.seat && !board.gameOver && (
+                {isLeader && (
                   <span className="leader-banner" title="队长">
                     <PixelFrames frames={BANNER} className="animate" />
                   </span>
                 )}
-                {team.includes(p.seat) && (
-                  <span className="team-mark" title="在本轮提名的队伍里">
-                    ⚔
+                {/* 提名的队员：右上角一面小三角旗；队长只插队长旗 */}
+                {team.includes(p.seat) && !isLeader && (
+                  <span className="team-pennant" title="在本轮提名的队伍里">
+                    <PixelFrames frames={PENNANT} className="animate" />
                   </span>
                 )}
                 {vote && (
@@ -307,7 +326,10 @@ export function TableLegend() {
         队长
       </span>
       <span>
-        <span className="legend-ring" />⚔ 提名的队伍
+        <span className="legend-icon">
+          <PixelArt sprite={PENNANT[0]} />
+        </span>
+        提名的队伍
       </span>
       <span>
         <span className="legend-acting" />正在行动

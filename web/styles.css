@@ -485,6 +485,7 @@ button.avatar-choice.active {
 }
 .stage-main {
   position: relative;
+  isolation: isolate; /* 让下面的石砖地面（::before）垫在内容后面 */
   flex: 1;
   min-width: 0;
   min-height: 0;
@@ -522,20 +523,100 @@ button.avatar-choice.active {
   aspect-ratio: 1;
   container-type: inline-size;
 }
-.table::before {
+/* 圆桌所在的大厅：像素石砖地面，中间被火光照亮，四周暗下去 */
+.stage-main::before {
   content: '';
   position: absolute;
-  inset: 21%;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 50% 52%, rgba(255, 170, 80, 0.07) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 50%, transparent 35%, rgba(0, 0, 0, 0.6) 100%),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' shape-rendering='crispEdges'%3E%3Crect x='0' y='0' width='1' height='1' fill='%230b0d10'/%3E%3Crect x='1' y='0' width='7' height='1' fill='%231c2027'/%3E%3Crect x='8' y='0' width='1' height='1' fill='%230b0d10'/%3E%3Crect x='9' y='0' width='7' height='1' fill='%231c2027'/%3E%3Crect x='0' y='1' width='1' height='1' fill='%230b0d10'/%3E%3Crect x='1' y='1' width='7' height='1' fill='%23171a20'/%3E%3Crect x='8' y='1' width='1' height='1' fill='%230b0d10'/%3E%3Crect x='9' y='1' width='7' height='1' fill='%23171a20'/%3E%3Crect x='0' y='2' width='1' height='1' fill='%230b0d10'/%3E%3Crect x='1' y='2' width='7' height='1' fill='%23171a20'/%3E%3Crect x='8' y='2' width='1' height='1' fill='%230b0d10'/%3E%3Crect x='9' y='2' width='7' height='1' fill='%23171a20'/%3E%3Crect x='0' y='3' width='16' height='1' fill='%230b0d10'/%3E%3Crect x='0' y='4' width='4' height='1' fill='%231c2027'/%3E%3Crect x='4' y='4' width='1' height='1' fill='%230b0d10'/%3E%3Crect x='5' y='4' width='7' height='1' fill='%231c2027'/%3E%3Crect x='12' y='4' width='1' height='1' fill='%230b0d10'/%3E%3Crect x='13' y='4' width='3' height='1' fill='%231c2027'/%3E%3Crect x='0' y='5' width='4' height='1' fill='%23171a20'/%3E%3Crect x='4' y='5' width='1' height='1' fill='%230b0d10'/%3E%3Crect x='5' y='5' width='7' height='1' fill='%23171a20'/%3E%3Crect x='12' y='5' width='1' height='1' fill='%230b0d10'/%3E%3Crect x='13' y='5' width='3' height='1' fill='%23171a20'/%3E%3Crect x='0' y='6' width='4' height='1' fill='%23171a20'/%3E%3Crect x='4' y='6' width='1' height='1' fill='%230b0d10'/%3E%3Crect x='5' y='6' width='7' height='1' fill='%23171a20'/%3E%3Crect x='12' y='6' width='1' height='1' fill='%230b0d10'/%3E%3Crect x='13' y='6' width='3' height='1' fill='%23171a20'/%3E%3Crect x='0' y='7' width='16' height='1' fill='%230b0d10'/%3E%3Crect x='0' y='8' width='1' height='1' fill='%230b0d10'/%3E%3Crect x='1' y='8' width='7' height='1' fill='%231c2027'/%3E%3Crect x='8' y='8' width='1' height='1' fill='%230b0d10'/%3E%3Crect x='9' y='8' width='7' height='1' fill='%231c2027'/%3E%3Crect x='0' y='9' width='1' height='1' fill='%230b0d10'/%3E%3Crect x='1' y='9' width='7' height='1' fill='%23171a20'/%3E%3Crect x='8' y='9' width='1' height='1' fill='%230b0d10'/%3E%3Crect x='9' y='9' width='7' height='1' fill='%23171a20'/%3E%3Crect x='0' y='10' width='1' height='1' fill='%230b0d10'/%3E%3Crect x='1' y='10' width='7' height='1' fill='%23171a20'/%3E%3Crect x='8' y='10' width='1' height='1' fill='%230b0d10'/%3E%3Crect x='9' y='10' width='7' height='1' fill='%23171a20'/%3E%3Crect x='0' y='11' width='16' height='1' fill='%230b0d10'/%3E%3Crect x='0' y='12' width='4' height='1' fill='%231c2027'/%3E%3Crect x='4' y='12' width='1' height='1' fill='%230b0d10'/%3E%3Crect x='5' y='12' width='7' height='1' fill='%231c2027'/%3E%3Crect x='12' y='12' width='1' height='1' fill='%230b0d10'/%3E%3Crect x='13' y='12' width='3' height='1' fill='%231c2027'/%3E%3Crect x='0' y='13' width='4' height='1' fill='%23171a20'/%3E%3Crect x='4' y='13' width='1' height='1' fill='%230b0d10'/%3E%3Crect x='5' y='13' width='7' height='1' fill='%23171a20'/%3E%3Crect x='12' y='13' width='1' height='1' fill='%230b0d10'/%3E%3Crect x='13' y='13' width='3' height='1' fill='%23171a20'/%3E%3Crect x='0' y='14' width='4' height='1' fill='%23171a20'/%3E%3Crect x='4' y='14' width='1' height='1' fill='%230b0d10'/%3E%3Crect x='5' y='14' width='7' height='1' fill='%23171a20'/%3E%3Crect x='12' y='14' width='1' height='1' fill='%230b0d10'/%3E%3Crect x='13' y='14' width='3' height='1' fill='%23171a20'/%3E%3Crect x='0' y='15' width='16' height='1' fill='%230b0d10'/%3E%3C/svg%3E") 0 0 / 48px 48px;
+  image-rendering: pixelated;
+}
+/* 圆桌四角的火把：火苗两帧闪动，背后一团跟着闪的火光 */
+.torch {
+  position: absolute;
+  width: clamp(12px, 3.2cqw, 24px);
+  aspect-ratio: 8 / 16;
+  pointer-events: none;
+  filter: drop-shadow(0 3px 0 rgba(0, 0, 0, 0.4));
+}
+.torch.nw {
+  left: 5%;
+  top: 4%;
+}
+.torch.ne {
+  right: 5%;
+  top: 4%;
+}
+.torch.sw {
+  left: 5%;
+  bottom: 7%;
+}
+.torch.se {
+  right: 5%;
+  bottom: 7%;
+}
+.torch .frames {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.torch .frames.animate .pixel-art {
+  animation-duration: 0.4s;
+}
+.torch.ne .frames.animate .pixel-art,
+.torch.sw .frames.animate .pixel-art {
+  animation-delay: -0.2s; /* 几支火把不要同步闪 */
+}
+.torch-glow {
+  --glow: rgba(255, 150, 60, 0.2);
+  position: absolute;
+  left: 50%;
+  top: 18%;
+  width: 700%;
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%);
   border-radius: 50%;
-  background: radial-gradient(circle, #2a2418 0%, #1c1a14 70%);
-  border: 2px solid rgba(214, 178, 94, 0.35);
-  box-shadow: 0 0 40px rgba(214, 178, 94, 0.08) inset;
+  background: radial-gradient(circle, var(--glow) 0%, transparent 65%);
+  animation: torch-flicker 1.8s ease-in-out infinite;
+}
+.torch.blood .torch-glow,
+.torch.evil .torch-glow {
+  --glow: rgba(255, 60, 60, 0.22);
+}
+@keyframes torch-flicker {
+  0%,
+  100% {
+    opacity: 0.85;
+  }
+  30% {
+    opacity: 1;
+  }
+  55% {
+    opacity: 0.7;
+  }
+  80% {
+    opacity: 0.95;
+  }
+}
+/* 像素圆桌（见 TableTop.tsx），比座位圈小一些；下面一道硬阴影，像素风的立体感 */
+.table-top {
+  position: absolute;
+  left: 17%;
+  top: 17%;
+  width: 66%;
+  height: 66%;
+  filter: drop-shadow(0 6px 0 rgba(0, 0, 0, 0.35));
 }
 .table-center {
   position: absolute;
   inset: 23%;
-  /* 从上往下排，下面的按钮、提示出现或消失时上面的部分不会跟着移动 */
-  padding-top: max(0px, 12cqw - 30px);
+  /* 从上往下排，下面的按钮、提示出现或消失时上面的部分不会跟着移动；从中间圆牌的上沿开始 */
+  padding-top: 6.5cqw;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -799,7 +880,7 @@ button.avatar-choice.active {
   flex-direction: column;
   align-items: center;
   gap: 6px;
-  width: 78%;
+  width: 70%;
   margin-top: 2px;
 }
 .your-turn-label {
@@ -816,24 +897,72 @@ button.avatar-choice.active {
 .table-actions .big-buttons {
   width: 100%;
 }
-.table-actions .big-buttons button {
-  padding: clamp(6px, 1.4cqw, 11px);
-  font-size: clamp(14px, 2.5cqw, 19px);
+/* 桌上的按钮做成像素风：方角、缺角的粗边框、底部一道暗边像能按下去；闪动发光提醒该操作了 */
+.table-actions .big-buttons {
+  gap: 14px;
 }
-/* 桌上的按钮直接用实色，并且闪动发光，一眼能看出该操作了 */
+.table-actions .big-buttons button {
+  --btn: #4a4a52;
+  --edge: #24242a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin: 3px;
+  padding: clamp(5px, 1.2cqw, 9px) clamp(6px, 1.4cqw, 11px) clamp(7px, 1.5cqw, 12px);
+  font-size: clamp(14px, 2.5cqw, 19px);
+  border: none;
+  border-radius: 0;
+  background: var(--btn);
+  color: #f4f1e8;
+  text-shadow: 1px 1px 0 var(--edge);
+  box-shadow:
+    0 -3px 0 0 var(--edge),
+    0 3px 0 0 var(--edge),
+    -3px 0 0 0 var(--edge),
+    3px 0 0 0 var(--edge),
+    inset 0 -4px 0 0 rgba(0, 0, 0, 0.3),
+    inset 0 3px 0 0 rgba(255, 255, 255, 0.18);
+}
+.table-actions .big-buttons button:active:not(:disabled) {
+  transform: translateY(2px);
+  box-shadow:
+    0 -3px 0 0 var(--edge),
+    0 3px 0 0 var(--edge),
+    -3px 0 0 0 var(--edge),
+    3px 0 0 0 var(--edge),
+    inset 0 -1px 0 0 rgba(0, 0, 0, 0.3),
+    inset 0 3px 0 0 rgba(0, 0, 0, 0.15);
+}
+.btn-icon {
+  width: clamp(14px, 2.6cqw, 20px);
+  height: clamp(14px, 2.6cqw, 20px);
+  flex-shrink: 0;
+}
 .table-actions .big-buttons .approve:not(:disabled) {
-  background: var(--ok);
-  border-color: var(--ok);
-  color: #06210f;
-  --glow: rgba(76, 195, 138, 0.75);
-  animation: glow 1.4s ease-in-out infinite;
+  --btn: #3f9d62;
+  --edge: #1b4a2d;
+  --glow: rgba(76, 195, 138, 0.85);
+  animation: pixel-glow 1.4s ease-in-out infinite;
 }
 .table-actions .big-buttons .reject:not(:disabled) {
-  background: var(--evil);
-  border-color: var(--evil);
-  color: #2a0808;
-  --glow: rgba(239, 90, 90, 0.75);
-  animation: glow 1.4s ease-in-out infinite;
+  --btn: #c94545;
+  --edge: #5a1818;
+  --glow: rgba(239, 90, 90, 0.85);
+  animation: pixel-glow 1.4s ease-in-out infinite;
+}
+/* 正义方不能出失败：灰掉 */
+.table-actions .big-buttons button:disabled {
+  opacity: 0.45;
+}
+.table-actions .big-buttons button:disabled .btn-icon {
+  filter: grayscale(1);
+}
+/* 发光用 drop-shadow，跟着像素边框的形状，不和边框的 box-shadow 冲突 */
+@keyframes pixel-glow {
+  50% {
+    filter: drop-shadow(0 0 7px var(--glow));
+  }
 }
 @keyframes glow {
   0%,
@@ -845,35 +974,43 @@ button.avatar-choice.active {
   }
 }
 .table-actions .big-buttons button:hover:not(:disabled) {
-  filter: brightness(1.12);
-  color: inherit;
+  background: color-mix(in srgb, var(--btn) 85%, white);
+  color: #fff;
 }
 .table-actions .error-text {
   margin: 0;
   font-size: 12px;
 }
+/* 提前刺杀：小号的像素按钮，和上面的大按钮同一种边框 */
 button.early-assassinate {
-  background: transparent;
-  border-color: rgba(239, 90, 90, 0.45);
+  margin: 2px;
+  border: none;
+  border-radius: 0;
+  background: #2a1414;
   color: var(--evil);
   font-size: 12px;
   padding: 1px 10px;
+  box-shadow:
+    0 -2px 0 0 #7a2424,
+    0 2px 0 0 #7a2424,
+    -2px 0 0 0 #7a2424,
+    2px 0 0 0 #7a2424;
 }
 button.early-assassinate:hover:not(:disabled) {
-  border-color: var(--evil);
-  background: var(--evil-soft);
+  background: #4a1a1a;
+  color: #ff8a8a;
 }
 /* 圆桌较小时（手机、窄窗口）中央放不下全部内容，收紧间距和尺寸，提示文字靠发光和实色按钮代替 */
 @container (max-width: 520px) {
   .table-center {
     gap: 3px;
-    padding-top: 2px;
   }
-  .mission,
+  .mission-map {
+    --tw: 21px;
+    --tg: 4px;
+  }
   .slot {
     width: 21px;
-    height: 21px;
-    font-size: 11px;
   }
   .attempts {
     margin-top: 9px;
@@ -886,7 +1023,7 @@ button.early-assassinate:hover:not(:disabled) {
     gap: 6px;
   }
   .table-actions .big-buttons button {
-    padding: 3px 4px;
+    padding: 2px 4px 4px;
     font-size: 13px;
   }
   button.early-assassinate {
@@ -940,20 +1077,9 @@ button.early-assassinate:hover:not(:disabled) {
   height: clamp(34px, 7.6cqw, 62px);
   font-size: clamp(14px, 2.9cqw, 23px);
 }
-.seat.in-team .avatar {
-  box-shadow:
-    0 0 0 3px var(--gold),
-    0 0 14px rgba(214, 178, 94, 0.6);
-}
-.seat.acting {
-  background: rgba(214, 178, 94, 0.14);
-  outline: 1.5px solid var(--gold);
-}
+/* 正在行动：只让头像闪动发光，座位本身不加框 */
 .seat.acting .avatar {
   animation: pulse 1.2s ease-out infinite;
-}
-.seat.in-team.acting .avatar {
-  animation: pulse-team 1.2s ease-out infinite;
 }
 .seat.me .seat-name {
   color: var(--gold);
@@ -1008,20 +1134,24 @@ button.early-assassinate:hover:not(:disabled) {
     opacity: 0;
   }
 }
-.team-mark {
+/* 提名的队员：右上角的小三角旗，比队长旗小 */
+.team-pennant {
   position: absolute;
-  left: -8px;
-  bottom: -3px;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background: var(--gold);
-  color: #1b1708;
-  font-size: 11px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 2px solid var(--bg);
+  right: -9px;
+  top: -15px;
+  width: 14px;
+  height: 16px;
+  transform-origin: bottom left;
+  animation: banner-up 0.4s ease-out both;
+  filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.85));
+}
+.team-pennant .frames {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.team-pennant .frames.animate .pixel-art {
+  animation-duration: 1.2s;
 }
 .table-legend {
   display: flex;
@@ -1044,18 +1174,12 @@ button.early-assassinate:hover:not(:disabled) {
   width: 100%;
   height: 100%;
 }
-.legend-ring {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  box-shadow: 0 0 0 2px var(--gold);
-}
 .legend-acting {
   width: 10px;
   height: 10px;
   border-radius: 3px;
-  outline: 1.5px solid var(--gold);
   background: rgba(214, 178, 94, 0.25);
+  box-shadow: 0 0 0 1px rgba(255, 215, 106, 0.6), 0 0 6px rgba(255, 215, 106, 0.8);
 }
 .vote-token {
   position: absolute;
@@ -1148,18 +1272,6 @@ button.early-assassinate:hover:not(:disabled) {
   }
   100% {
     box-shadow: 0 0 0 12px rgba(255, 215, 106, 0);
-  }
-}
-@keyframes pulse-team {
-  0% {
-    box-shadow:
-      0 0 0 3px var(--gold),
-      0 0 0 3px rgba(255, 215, 106, 0.9);
-  }
-  100% {
-    box-shadow:
-      0 0 0 3px var(--gold),
-      0 0 0 15px rgba(255, 215, 106, 0);
   }
 }
 
@@ -1753,6 +1865,8 @@ button.early-assassinate:hover:not(:disabled) {
   .wagon.moving,
   .wagon.moving .frames,
   .leader-banner,
+  .team-pennant,
+  .torch-glow,
   .mission-flag,
   .vote-face,
   .shield {

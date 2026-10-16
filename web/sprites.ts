@@ -42,6 +42,65 @@ export const BANNER: Sprite[] = [
   ]),
 ];
 
+// 出征队员的小三角旗：和队长旗同样的红色，比队长旗小、形状不同；两帧飘动
+const PENNANT_PALETTE = { p: '#8a5a2b' };
+export const PENNANT: Sprite[] = [
+  sprite(PENNANT_PALETTE, [
+    'g........',
+    'prrr.....',
+    'prrrrr...',
+    'prrrrrrrr',
+    'pRRRRR...',
+    'pRRR.....',
+    'p........',
+    'p........',
+    'p........',
+    'p........',
+  ]),
+  sprite(PENNANT_PALETTE, [
+    'g........',
+    'prrr.....',
+    'prrrrr...',
+    'prrrrrrr.',
+    'pRRRRRRRR',
+    'pRRR.....',
+    'p........',
+    'p........',
+    'p........',
+    'p........',
+  ]),
+];
+
+// 圆桌四角的火把：火苗两帧闪动。平时和正义方获胜时是橙色的火，刺杀阶段和邪恶方获胜时变红
+export type TableMood = 'normal' | 'blood' | 'good' | 'evil';
+const ORANGE_FLAME = { r: '#c8401c', o: '#f08a24', y: '#ffd54a', w: '#fff3c0' };
+const RED_FLAME = { r: '#7a0f1a', o: '#c0242c', y: '#ff5a4a', w: '#ffc0b0' };
+const FLAME: Record<TableMood, Record<string, string>> = {
+  normal: ORANGE_FLAME,
+  good: ORANGE_FLAME,
+  blood: RED_FLAME,
+  evil: RED_FLAME,
+};
+const TORCH_BASE = [
+  '.kkkkkk.',
+  '.kaaaak.',
+  '..kAAk..',
+  '...bb...',
+  '...bb...',
+  '...bb...',
+  '...bb...',
+  '..kaak..',
+  '..kAAk..',
+  '...kk...',
+];
+const TORCH_FLAMES = [
+  ['...rr...', '..rorr..', '..royr..', '.roywor.', '.roywyr.', '..ryyr..'],
+  ['....r...', '...rr...', '..rorr..', '.royyor.', '.roywor.', '..ryyr..'],
+];
+export function torch(mood: TableMood): Sprite[] {
+  return TORCH_FLAMES.map((flame) => sprite({ b: '#6b4423', ...FLAME[mood] }, [...flame, ...TORCH_BASE]));
+}
+
 // 投票牌：赞成举剑，反对举盾（盾上一个叉）
 export const VOTE_SWORD = sprite({ b: '#6b4423', h: '#7a8794', a: '#c9d1d9' }, [
   '....w....',
@@ -66,6 +125,31 @@ export const VOTE_SHIELD = sprite({ x: '#8f1d1d' }, [
   '.kwwwwwk.',
   '..kwwwk..',
   '...kkk...',
+]);
+
+// 任务牌按钮：成功是圣杯，失败是滴血的匕首
+export const CARD_GRAIL = sprite({}, [
+  'kkkkkkkkk',
+  'kgwgggggk',
+  '.kgwgggk.',
+  '.kgggggk.',
+  '..kgggk..',
+  '...kgk...',
+  '...kgk...',
+  '..kgggk..',
+  '.kkkkkkk.',
+]);
+
+export const CARD_DAGGER = sprite({ b: '#6b4423', h: '#7a8794', a: '#c9d1d9' }, [
+  '...ggg...',
+  '....b....',
+  '.ggggggg.',
+  '...wah...',
+  '...wah...',
+  '...wah...',
+  '...wah...',
+  '....a....',
+  '....r....',
 ]);
 
 // 任务据点：一座石塔

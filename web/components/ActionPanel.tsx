@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import type { ActionSubmission, ActionType, HumanRequest, PlayerInfo } from '../../shared/types.ts';
 import { api } from '../client.ts';
+import { CARD_DAGGER, CARD_GRAIL, VOTE_SHIELD, VOTE_SWORD } from '../sprites.ts';
+import { PixelArt } from './PixelAvatar.tsx';
 
 // 人类玩家的操作分在两处：选人和投票、出任务牌在圆桌上，打字在圆桌下方弹出的发言框里。
 // 两处共用 useHumanAction 里的状态
@@ -156,16 +158,19 @@ export function TableActions({ act }: { act: HumanAction | null }) {
       {action === 'vote' && (
         <div className="big-buttons">
           <button className="approve" disabled={busy} onClick={() => submit({ vote: 'approve' })}>
-            ✓ 赞成
+            <PixelArt sprite={VOTE_SWORD} className="pixel-art btn-icon" />
+            赞成
           </button>
           <button className="reject" disabled={busy} onClick={() => submit({ vote: 'reject' })}>
-            ✗ 反对
+            <PixelArt sprite={VOTE_SHIELD} className="pixel-art btn-icon" />
+            反对
           </button>
         </div>
       )}
       {action === 'mission' && (
         <div className="big-buttons">
           <button className="approve" disabled={busy} onClick={() => submit({ mission_card: 'success' })}>
+            <PixelArt sprite={CARD_GRAIL} className="pixel-art btn-icon" />
             成功
           </button>
           <button
@@ -174,6 +179,7 @@ export function TableActions({ act }: { act: HumanAction | null }) {
             title={request.canFail ? '' : '正义方只能出成功'}
             onClick={() => submit({ mission_card: 'fail' })}
           >
+            <PixelArt sprite={CARD_DAGGER} className="pixel-art btn-icon" />
             失败
           </button>
         </div>
