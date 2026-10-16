@@ -22,6 +22,12 @@ export const api = {
     request<{ ok: true }>(`/api/games/${id}/postgame`, { method: 'POST', body: JSON.stringify({ token }) }),
   chat: (id: string, token: string, target: number, text: string) =>
     request<{ ok: true }>(`/api/games/${id}/chat`, { method: 'POST', body: JSON.stringify({ token, target, text }) }),
+  setDebug: (id: string, on: boolean, token?: string) =>
+    request<{ ok: true }>(`/api/games/${id}/debug`, { method: 'POST', body: JSON.stringify({ token, on }) }),
+  setPaused: (id: string, paused: boolean, token?: string) =>
+    request<{ ok: true }>(`/api/games/${id}/pause`, { method: 'POST', body: JSON.stringify({ token, paused }) }),
+  debugAsk: (id: string, seat: number, question: string, token?: string) =>
+    request<{ ok: true }>(`/api/games/${id}/ask`, { method: 'POST', body: JSON.stringify({ token, seat, question }) }),
   stop: (id: string, token?: string) =>
     request<{ ok: true }>(`/api/games/${id}/stop`, { method: 'POST', body: JSON.stringify({ token }) }),
 };

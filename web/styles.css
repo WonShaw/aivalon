@@ -1879,3 +1879,51 @@ button.early-assassinate:hover:not(:disabled) {
     visibility: hidden;
   }
 }
+
+/* ---------- 调试模式 ---------- */
+.toggle.debug-on {
+  color: var(--unknown);
+}
+.toggle.paused {
+  color: var(--evil);
+  font-weight: 700;
+}
+.notice.paused-notice {
+  color: var(--evil);
+  background: var(--evil-soft);
+}
+/* 裁判和 AI 的问答：紫色虚线框，和游戏里的发言区分开 */
+.debug-card {
+  border: 1px dashed var(--unknown);
+  border-radius: var(--radius);
+  padding: 8px 12px;
+  background: rgba(195, 155, 255, 0.06);
+}
+.debug-card.answer {
+  margin-left: 18px;
+}
+.debug-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--unknown);
+  margin-bottom: 4px;
+}
+.debug-thinking {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--muted);
+  white-space: pre-wrap;
+}
+.debug-thinking summary {
+  cursor: pointer;
+}
+.composer.debug {
+  border-color: var(--unknown);
+}
+.composer.debug .composer-title {
+  color: var(--unknown);
+}

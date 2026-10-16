@@ -112,9 +112,9 @@ export function narrate(e: GameEvent, players: PlayerInfo[], mySeat: number | nu
     case 'mission_result':
       return say(`第${e.mission}个任务${e.success ? '成功' : '失败'}，失败票${e.fails}张。`);
     case 'assassination_start':
-      if (e.declaredBy) return say(`${who(e.declaredBy)}亮明刺客身份，发起提前刺杀！`);
       return say(
-        `正义方完成三个任务，进入刺杀阶段。邪恶方亮明身份：` +
+        (e.declaredBy ? `${who(e.declaredBy)}亮明刺客身份，发起提前刺杀！` : '正义方完成三个任务，进入刺杀阶段。') +
+          '邪恶方亮明身份：' +
           e.evil.map((x) => `${x.seat}号，${ROLE_NAME[x.role]}`).join('；') +
           '。',
       );

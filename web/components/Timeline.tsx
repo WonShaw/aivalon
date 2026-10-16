@@ -39,6 +39,8 @@ export function Timeline(props: Props) {
   const mySeat = viewer?.kind === 'player' ? viewer.seat : null;
 
   const roleOf = (seat: number): Role | undefined => props.roles[seat];
+  // 已经回答了的调试提问
+  const answered = new Set(events.flatMap((e) => (e.type === 'debug_answer' ? [e.id] : [])));
   const name = (seat: number) => playerName(players, seat);
 
   useEffect(() => {
@@ -222,18 +224,13 @@ export function Timeline(props: Props) {
               ? `${e.declaredBy}号 ${name(e.declaredBy)} 亮明刺客身份，发起提前刺杀！`
               : '正义方完成 3 个任务，进入刺杀阶段'}
             <div className="banner-sub">
-              {e.declaredBy ? (
-                '当前的组队和任务作废，由刺客直接选择刺杀目标'
-              ) : (
-                <>
-                  邪恶方亮明身份：
-                  {e.evil.map((x) => (
-                    <span key={x.seat} className="badge small evil">
-                      {x.seat}号 {name(x.seat)} · {roleLabel(x.role)}
-                    </span>
-                  ))}
-                </>
-              )}
+              {e.declaredBy && '当前的组队和任务作废。'}
+              邪恶方亮明身份：
+              {e.evil.map((x) => (
+                <span key={x.seat} className="badge small evil">
+                  {x.seat}号 {name(x.seat)} · {roleLabel(x.role)}
+                </span>
+              ))}
             </div>
           </div>
         );
@@ -274,6 +271,34 @@ export function Timeline(props: Props) {
         );
       case 'ai_usage':
         return null;
+      // 调试模式下裁判和 AI 的问答：服务端只推给能看到全部信息的人，不进入游戏
+      case 'debug_ask':
+        return (
+          <div className="debug-card ask">
+            <div className="debug-head">
+              <span className="kind">调试</span>裁判 → {e.seat}号 {name(e.seat)}
+            </div>
+            <div className="msg-text">{e.question}</div>
+            {!answered.has(e.id) && <div className="muted dots">{name(e.seat)} 正在思考</div>}
+          </div>
+        );
+      case 'debug_answer':
+        return (
+          <div className="debug-card answer">
+            <div className="debug-head">
+              <span className="kind">调试</span>
+              {e.seat}号 {name(e.seat)} → 裁判
+              {e.forked && <span className="muted">（新 fork 的会话）</span>}
+            </div>
+            {e.error ? <div className="error-text">出错：{e.error}</div> : <div className="msg-text">{e.answer}</div>}
+            {e.thinking && godView && (
+              <details className="debug-thinking">
+                <summary>思考摘要</summary>
+                {e.thinking}
+              </details>
+            )}
+          </div>
+        );
     }
   };
 

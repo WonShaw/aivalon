@@ -81,7 +81,7 @@ export type GameEventBody =
     }
   | { type: 'mission_cards'; mission: number; cards: Record<number, 'success' | 'fail'> }
   | { type: 'mission_result'; mission: number; team: number[]; fails: number; success: boolean }
-  // evil：亮明身份的邪恶方。刺客提前发起刺杀时（declaredBy 是刺客的座位）只亮明刺客
+  // evil：亮明身份的邪恶方。declaredBy：刺客提前发起刺杀时是刺客的座位
   | { type: 'assassination_start'; evil: { seat: number; role: Role }[]; declaredBy?: number }
   | { type: 'assassination'; assassin: number; target: number; targetRole: Role; hit: boolean }
   | {
@@ -95,6 +95,10 @@ export type GameEventBody =
   | { type: 'postgame_end' }
   // 以下仅观众可见
   | { type: 'thought'; seat: number; action: ActionType; summary: string }
+  // 调试模式下以裁判身份向某个 AI 提问：在从它的游戏会话 fork 出来的临时会话里回答，不进入游戏，其他 AI 看不到。
+  // forked：这次是新 fork 的（第一次问，或者它在游戏里又行动过），否则接着上一次的调试对话
+  | { type: 'debug_ask'; id: string; seat: number; question: string }
+  | { type: 'debug_answer'; id: string; seat: number; answer?: string; thinking?: string; error?: string; forked?: boolean }
   | { type: 'ai_error'; seat: number; action: ActionType; message: string }
   // costUsd 是这个 AI 的会话到这次调用为止的累计估算费用（SDK 续接会话时会带上之前的轮次），
   // 不是这一次的费用；token 数是这一次调用的
@@ -132,16 +136,18 @@ export interface GameSummary {
   setup: Role[]; // 本局的身份配置（不含谁是谁）
   postgame: PostgameStatus;
   ai?: AIConfig; // AI 玩家的模型和推理强度（早期的记录没有）
+  debug: boolean; // 调试模式：本局所有人都能看到全部身份和 AI 的思考，可以暂停、以裁判身份向 AI 提问
+  paused: boolean; // 调试模式下暂停了：已经发起的 AI 调用照常完成，新的调用等继续后再发起
 }
 
 // 谁在看：全 AI 对局的上帝视角观众，或者某个座位上的人类玩家
 export type Viewer = { kind: 'spectator' } | { kind: 'player'; seat: number };
 
 // 能看到全部信息（所有人的身份、任务牌、AI 的思考摘要和调用统计）：全 AI 对局的观众一直可以，
-// 玩家在对局正常结束后也可以。服务端据此过滤推送，网页据此显示对应的开关和面板。
+// 玩家在对局正常结束后、或者本局开了调试模式时也可以。服务端据此过滤推送，网页据此显示对应的开关和面板。
 // 只影响推给网页的内容，AI 的上下文由 engine.ts 的 visibleTo 单独过滤
-export function seesEverything(viewer: Viewer, status: GameStatus): boolean {
-  return viewer.kind === 'spectator' || status === 'finished';
+export function seesEverything(viewer: Viewer, status: GameStatus, debug = false): boolean {
+  return viewer.kind === 'spectator' || status === 'finished' || debug;
 }
 
 // 等待人类玩家做的动作

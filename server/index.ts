@@ -40,6 +40,8 @@ function recordSummary(r: GameRecord): GameSummary {
     setup: r.setup ?? STANDARD_SETUP,
     postgame: r.postgame ?? 'none',
     ai: r.ai,
+    debug: !!r.debug,
+    paused: false,
   };
 }
 
@@ -95,8 +97,8 @@ function stream(req: IncomingMessage, res: ServerResponse, id: string, token: st
     'Cache-Control': 'no-cache',
     Connection: 'keep-alive',
   });
-  // 观众一直能看到全部信息；玩家在对局正常结束后也能看到，和观众一样
-  const seesAllNow = () => seesEverything(viewer, game.record.status);
+  // 观众一直能看到全部信息；玩家在对局正常结束后、或者开了调试模式时也能看到，和观众一样
+  const seesAllNow = () => seesEverything(viewer, game.record.status, !!game.record.debug);
   let seesAll = seesAllNow();
   const send = (msg: StreamMessage) => {
     if (messageVisible(msg, viewer, seesAll)) res.write(`data: ${JSON.stringify(msg)}\n\n`);
@@ -117,7 +119,7 @@ function stream(req: IncomingMessage, res: ServerResponse, id: string, token: st
   };
   sendAll();
 
-  // 对局刚结束时重推一遍，之前没推给玩家的内容（思考摘要、其他人的身份、任务牌、调用统计）不用刷新页面也能看到
+  // 对局刚结束（或刚开调试模式）时重推一遍，之前没推给玩家的内容（思考摘要、其他人的身份、任务牌、调用统计）不用刷新页面也能看到
   const onMessage = (msg: StreamMessage) => {
     if (!seesAll && seesAllNow()) {
       seesAll = true;
@@ -190,7 +192,7 @@ async function act(req: IncomingMessage, res: ServerResponse, id: string): Promi
 // 删除一局的对局记录和这局所有 AI 的会话记录，返回删掉的会话数
 async function removeGame(record: GameRecord): Promise<number> {
   let sessions = 0;
-  for (const sessionId of Object.values(record.sessions ?? {})) {
+  for (const sessionId of [...Object.values(record.sessions ?? {}), ...(record.debugSessions ?? [])]) {
     if (sessionId && (await deleteAISession(sessionId))) sessions++;
   }
   store.deleteGame(record.id);
@@ -251,6 +253,44 @@ async function startChat(req: IncomingMessage, res: ServerResponse, id: string):
   json(res, 200, { ok: true });
 }
 
+// 调试相关的操作：全 AI 对局谁都可以，有人类的对局需要玩家凭证
+function canControl(game: Game, token: string | undefined): boolean {
+  return !game.hasHumans || (!!token && game.seatForToken(token) !== null);
+}
+
+// 开关调试模式。开了以后本局所有人都能看到全部身份和 AI 的思考
+async function setDebug(req: IncomingMessage, res: ServerResponse, id: string): Promise<void> {
+  const game = loadGame(id);
+  if (!game) return json(res, 404, { error: '对局不存在' });
+  const body = await readBody<{ token?: string; on?: boolean }>(req);
+  if (!canControl(game, body.token)) return json(res, 403, { error: '只有参与这局的玩家可以开关调试模式' });
+  game.setDebug(!!body.on);
+  json(res, 200, { ok: true });
+}
+
+// 调试模式下暂停 / 继续 AI 调用
+async function setPaused(req: IncomingMessage, res: ServerResponse, id: string): Promise<void> {
+  const game = loadGame(id);
+  if (!game) return json(res, 404, { error: '对局不存在' });
+  const body = await readBody<{ token?: string; paused?: boolean }>(req);
+  if (!canControl(game, body.token)) return json(res, 403, { error: '只有参与这局的玩家可以暂停' });
+  if (!game.record.debug && body.paused) return json(res, 409, { error: '只有调试模式下才能暂停' });
+  game.setPaused(!!body.paused);
+  json(res, 200, { ok: true });
+}
+
+// 调试模式下以裁判身份向某个 AI 提问（不进入游戏）
+async function debugAsk(req: IncomingMessage, res: ServerResponse, id: string): Promise<void> {
+  const game = loadGame(id);
+  if (!game) return json(res, 404, { error: '对局不存在' });
+  const body = await readBody<{ token?: string; seat?: unknown; question?: unknown }>(req);
+  if (!canControl(game, body.token)) return json(res, 403, { error: '只有参与这局的玩家可以提问' });
+  const error = game.debugAskError(body.seat, body.question);
+  if (error) return json(res, 400, { error });
+  void game.debugAsk(body.seat as number, body.question as string);
+  json(res, 200, { ok: true });
+}
+
 async function stop(req: IncomingMessage, res: ServerResponse, id: string): Promise<void> {
   const game = games.get(id);
   if (!game || !isBusy(game)) return json(res, 404, { error: '对局未在进行' });
@@ -298,7 +338,7 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
   const del = /^\/api\/games\/([\w-]+)$/.exec(path);
   if (del && req.method === 'DELETE') return deleteGame(res, del[1]);
 
-  const m = /^\/api\/games\/([\w-]+)\/(stream|act|stop|postgame|chat)$/.exec(path);
+  const m = /^\/api\/games\/([\w-]+)\/(stream|act|stop|postgame|chat|debug|pause|ask)$/.exec(path);
   if (m) {
     const [, id, op] = m;
     if (op === 'stream' && req.method === 'GET') return stream(req, res, id, url.searchParams.get('token'));
@@ -306,6 +346,9 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
     if (op === 'stop' && req.method === 'POST') return stop(req, res, id);
     if (op === 'postgame' && req.method === 'POST') return startPostgame(req, res, id);
     if (op === 'chat' && req.method === 'POST') return startChat(req, res, id);
+    if (op === 'debug' && req.method === 'POST') return setDebug(req, res, id);
+    if (op === 'pause' && req.method === 'POST') return setPaused(req, res, id);
+    if (op === 'ask' && req.method === 'POST') return debugAsk(req, res, id);
   }
 
   if (path.startsWith('/api/')) return json(res, 404, { error: 'not found' });

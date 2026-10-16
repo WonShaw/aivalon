@@ -18,7 +18,7 @@ import type {
   Team,
   Visibility,
 } from '../../shared/types.ts';
-import { AIPlayer, type ActResult } from '../ai/player.ts';
+import { AIPlayer, askDebug, type ActResult } from '../ai/player.ts';
 import { AI_NAMES } from '../ai/names.ts';
 import {
   actionInstruction,
@@ -72,8 +72,13 @@ export class Game {
   private readonly pendingHumans = new Map<number, PendingHuman>();
   private abortController = new AbortController(); // 当前阶段（对局 / 赛后交流）的中止信号
   private phase: 'play' | 'assassination' | 'over' = 'play';
-  private early: { seat: number; target: number; speech?: string } | null = null; // 刺客发起的提前刺杀
+  private early: { seat: number; speech?: string } | null = null; // 刺客发起的提前刺杀
   private readonly inflight = new Set<Promise<ActionSubmission>>(); // 还没结束的询问
+  private paused = false; // 调试模式下的暂停
+  private readonly resumeWaiters = new Set<() => void>(); // 暂停期间等着发起调用的 AI
+  // 调试提问：每个 AI 当前的调试会话，以及 fork 时它在游戏里已经调用过几次（之后又行动过就重新 fork）
+  private readonly debugThreads: Record<number, { sessionId: string; calls: number }> = {};
+  private readonly debugPending = new Set<number>(); // 正在回答调试提问的 AI
 
   // 调用前需要先用 validateSetup 校验配置；人类的身份偏好无法满足时抛出错误
   static create(store: GameStore, req: CreateGameRequest): Game {
@@ -199,7 +204,8 @@ export class Game {
   summary(): GameSummary {
     const { id, createdAt, status, winner, players, setup, ai } = this.record;
     const postgame = this.record.postgame ?? 'none';
-    return { id, createdAt, status, winner, players, hasHumans: this.hasHumans, setup, postgame, ai };
+    const debug = !!this.record.debug;
+    return { id, createdAt, status, winner, players, hasHumans: this.hasHumans, setup, postgame, ai, debug, paused: this.paused };
   }
 
   actingNow(): { seat: number; action: ActionType }[] {
@@ -221,7 +227,7 @@ export class Game {
     if (!pending) return '现在不需要你行动';
     const early = this.isEarlyAssassination(seat, pending.request.action, submission);
     if (!early && submission.action !== pending.request.action) return `现在需要的动作是 ${pending.request.action}`;
-    const error = early ? this.earlyTargetError(seat, submission) : pending.validate(submission);
+    const error = early ? null : pending.validate(submission);
     if (error) return error;
     this.pendingHumans.delete(seat);
     this.broadcast({ kind: 'request_done', seat, id: pending.request.id });
@@ -230,12 +236,14 @@ export class Game {
   }
 
   stop(): void {
+    this.setPaused(false); // 暂停中等着的调用会因为中止而结束
     this.abortController.abort();
     for (const pending of this.pendingHumans.values()) pending.reject(new GameAborted());
     this.pendingHumans.clear();
   }
 
-  // 刺客在组队和任务阶段轮到自己行动时，可以不做要求的动作，改为提交 assassinate 发起提前刺杀
+  // 刺客在组队和任务阶段轮到自己行动时，可以不做要求的动作，改为提交 assassinate 发起提前刺杀，
+  // 之后直接进入刺杀阶段（邪恶方亮明身份并讨论，最后由刺客选目标）
   private canAssassinateEarly(seat: number): boolean {
     return (
       this.record.status === 'running' && this.phase === 'play' && this.early === null && this.record.roles[seat] === 'assassin'
@@ -246,17 +254,9 @@ export class Game {
     return o.action === 'assassinate' && requested !== 'assassinate' && this.canAssassinateEarly(seat);
   }
 
-  private earlyTargetError(seat: number, o: ActionSubmission): string | null {
-    if (o.target === undefined) return '缺少 target';
-    if (!Number.isInteger(o.target) || o.target < 1 || o.target > this.n || o.target === seat) {
-      return `target 必须是除你以外的座位号（1 到 ${this.n}）`;
-    }
-    return null;
-  }
-
   // 记下提前刺杀并取消其他人类玩家还没完成的请求；正在思考的 AI 不打断，等它们做完（结果作废）再结算
   private declareEarly(seat: number, o: ActionSubmission): void {
-    this.early = { seat, target: o.target!, speech: o.speech };
+    this.early = { seat, speech: o.speech };
     for (const [s, pending] of this.pendingHumans) {
       this.broadcast({ kind: 'request_done', seat: s, id: pending.request.id });
       pending.reject(new EarlyAssassination());
@@ -367,6 +367,8 @@ export class Game {
   private async callAI(seat: number, action: ActionType, prompt: string): Promise<ActResult> {
     for (let attempt = 0; ; attempt++) {
       this.checkAborted();
+      await this.waitWhilePaused();
+      this.checkAborted();
       this.setActing(seat, action, true);
       try {
         const text = attempt === 0 ? prompt : `【裁判】（上一次请求意外中断，请重新提交。）\n\n${prompt}`;
@@ -413,7 +415,7 @@ export class Game {
 
       const out = res.output;
       const error = this.isEarlyAssassination(seat, action, out)
-        ? this.earlyTargetError(seat, out)
+        ? null
         : out.action !== action
           ? `本次需要的 action 是 ${action}，你提交的是 ${out.action}`
           : validate(out);
@@ -427,6 +429,84 @@ export class Game {
 
     this.emit({ type: 'ai_error', seat, action, message: '多次提交无效，裁判代为执行默认动作' }, SPECTATOR);
     return fallback();
+  }
+
+  // ---------- 调试模式 ----------
+
+  setDebug(on: boolean): void {
+    this.record.debug = on;
+    this.store.saveRecord(this.record);
+    if (!on) this.setPaused(false);
+    this.broadcast({ kind: 'game', summary: this.summary() });
+  }
+
+  // 暂停：已经发起的 AI 调用照常完成，还没发起的等继续后再发起；人类玩家的操作不受影响
+  setPaused(paused: boolean): void {
+    if (this.paused === paused) return;
+    this.paused = paused;
+    if (!paused) {
+      for (const resume of this.resumeWaiters) resume();
+      this.resumeWaiters.clear();
+    }
+    this.broadcast({ kind: 'game', summary: this.summary() });
+  }
+
+  private async waitWhilePaused(): Promise<void> {
+    if (!this.paused) return;
+    const signal = this.abortController.signal;
+    await new Promise<void>((resolve, reject) => {
+      const resume = () => {
+        signal.removeEventListener('abort', onAbort);
+        resolve();
+      };
+      const onAbort = () => {
+        this.resumeWaiters.delete(resume);
+        reject(new GameAborted());
+      };
+      this.resumeWaiters.add(resume);
+      signal.addEventListener('abort', onAbort, { once: true });
+    });
+  }
+
+  // 调试提问的参数检查：返回错误信息，或 null 表示可以
+  debugAskError(seat: unknown, question: unknown): string | null {
+    if (!this.record.debug) return '只有调试模式下才能向 AI 提问';
+    if (typeof seat !== 'number' || !this.ais[seat]) return '只能向 AI 玩家提问';
+    if (!this.ais[seat].sessionId) return '这个 AI 还没有在游戏里行动过，没有可以提问的记忆';
+    if (this.debugPending.has(seat)) return '上一个问题还没回答完';
+    if (typeof question !== 'string' || !question.trim()) return '请输入问题';
+    return null;
+  }
+
+  // 以裁判身份向某个 AI 提问。在从它的游戏会话 fork 出来的会话里回答：带着游戏里的记忆，但不进入游戏，
+  // 问答记成仅观众可见的事件，其他 AI 看不到。调用前要先用 debugAskError 检查
+  async debugAsk(seat: number, question: string): Promise<void> {
+    const id = randomUUID();
+    const q = question.trim().slice(0, MAX_SPEECH_CHARS);
+    this.debugPending.add(seat);
+    this.emit({ type: 'debug_ask', id, seat, question: q }, SPECTATOR);
+    // 第一次问，或者它在游戏里又行动过：从游戏会话重新 fork，好让它知道最新的情况；否则接着上一次的调试对话问
+    const calls = this.events.filter((e) => e.type === 'ai_usage' && e.seat === seat).length;
+    const thread = this.debugThreads[seat];
+    const fork = !thread || thread.calls !== calls;
+    const prompt = [
+      `【裁判·调试】这是游戏之外的调试提问。你的回答不会进入游戏，其他玩家看不到，也不会影响接下来的对局，所以请如实回答，不需要隐瞒身份、想法或策略。`,
+      `问题：${sanitizeSpeech(q)}`,
+      `请提交 action=chat，把回答写在 speech 里。`,
+    ].join('\n');
+    try {
+      const res = await askDebug(this.record.ai ?? DEFAULT_AI_CONFIG, prompt, fork ? this.ais[seat].sessionId! : thread.sessionId, fork);
+      this.debugThreads[seat] = { sessionId: res.sessionId, calls };
+      if (!this.record.debugSessions?.includes(res.sessionId)) {
+        this.record.debugSessions = [...(this.record.debugSessions ?? []), res.sessionId];
+        this.store.saveRecord(this.record);
+      }
+      this.emit({ type: 'debug_answer', id, seat, answer: res.answer, thinking: res.thinking || undefined, forked: fork }, SPECTATOR);
+    } catch (err) {
+      this.emit({ type: 'debug_answer', id, seat, error: err instanceof Error ? err.message : String(err), forked: fork }, SPECTATOR);
+    } finally {
+      this.debugPending.delete(seat);
+    }
   }
 
   // ---------- 校验 ----------
@@ -476,7 +556,7 @@ export class Game {
       if (this.early === null || this.abortController.signal.aborted) throw err;
       // 等还在思考的 AI 做完再结算，之后它们还要被问话，同一个 AI 会话不能同时有两个调用
       await Promise.allSettled([...this.inflight]);
-      return this.earlyAssassination(this.early);
+      return this.assassination(this.early);
     }
   }
 
@@ -594,15 +674,16 @@ export class Game {
     return success;
   }
 
-  // 正义方完成 3 个任务后进入刺杀：邪恶方亮明身份并讨论，最后由刺客决定
-  private async assassination(): Promise<Team> {
+  // 正义方完成 3 个任务、或者刺客提前发起刺杀（early）后进入刺杀：邪恶方亮明身份并讨论，最后由刺客决定
+  private async assassination(early?: { seat: number; speech?: string }): Promise<Team> {
     this.phase = 'assassination';
     const { roles } = this.record;
     const evil = this.seatsFrom(1)
       .filter((s) => isEvil(roles[s]))
       .map((seat) => ({ seat, role: roles[seat] }));
     const assassin = evil.find((e) => e.role === 'assassin')!.seat;
-    this.emit({ type: 'assassination_start', evil }, PUBLIC);
+    this.emit({ type: 'assassination_start', evil, declaredBy: early?.seat }, PUBLIC);
+    if (early?.speech?.trim()) this.emit({ type: 'speech', seat: assassin, kind: 'assassinate', text: early.speech }, PUBLIC);
 
     // 刺客先发言，然后其他邪恶方玩家发言，最后刺客做决定
     const order = [assassin, ...evil.map((e) => e.seat).filter((s) => s !== assassin)];
@@ -630,18 +711,8 @@ export class Game {
     // 刺杀宣言可选
     if (decision.speech?.trim()) this.emit({ type: 'speech', seat: assassin, kind: 'assassinate', text: decision.speech }, PUBLIC);
 
-    return this.settleAssassination(assassin, decision.target!, '');
-  }
-
-  // 刺客提前发起刺杀：只亮明刺客身份，不讨论，直接按刺客选的目标结算
-  private earlyAssassination({ seat, target, speech }: { seat: number; target: number; speech?: string }): Team {
-    this.phase = 'assassination';
-    this.emit({ type: 'assassination_start', evil: [{ seat, role: 'assassin' }], declaredBy: seat }, PUBLIC);
-    if (speech?.trim()) this.emit({ type: 'speech', seat, kind: 'assassinate', text: speech }, PUBLIC);
-    return this.settleAssassination(seat, target, '提前刺杀：');
-  }
-
-  private settleAssassination(assassin: number, target: number, prefix: string): Team {
+    const target = decision.target!;
+    const prefix = early ? '提前刺杀：' : '';
     const hit = this.record.roles[target] === 'merlin';
     this.emit({ type: 'assassination', assassin, target, targetRole: this.record.roles[target], hit }, PUBLIC);
     return hit

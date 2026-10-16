@@ -4,6 +4,7 @@ import { avatarOf } from '../shared/avatars.ts';
 import { seesEverything, type CreateGameResponse, type GameStatus } from '../shared/types.ts';
 import { api, createGame, loadRequest } from './client.ts';
 import { ChatComposer, Composer, TableActions, useHumanAction, usePostgameChat } from './components/ActionPanel.tsx';
+import { DebugAsk } from './components/DebugPanel.tsx';
 import { RoleGuide } from './components/RoleGuide.tsx';
 import { RoundTable, TableLegend } from './components/RoundTable.tsx';
 import { Timeline } from './components/Timeline.tsx';
@@ -54,7 +55,10 @@ export function GameView({ gameId, token, onBack, onCreated }: Props) {
   const [voiceRate, setVoiceRate] = useVoiceRate();
   // 开启朗读时，事件按朗读进度一条条显示；落后时对局状态、谁在行动、轮到你的操作都等追上了再显示
   // 上帝视角下时间线显示每张任务牌，朗读也跟着读出来
-  const voiceGodView = godView && !!state.viewer && !!state.summary && seesEverything(state.viewer, state.summary.status);
+  // 调试模式和暂停直接用最新状态，不等朗读追上
+  const debug = !!state.summary?.debug;
+  const paused = !!state.summary?.paused;
+  const voiceGodView = godView && !!state.viewer && !!state.summary && seesEverything(state.viewer, state.summary.status, debug);
   const voice = usePlayback(state, voiceOn, voiceRate, voiceGodView);
   const viewer = state.viewer;
   const events = voice.events;
@@ -65,8 +69,8 @@ export function GameView({ gameId, token, onBack, onCreated }: Props) {
   const board = useMemo(() => deriveBoard(events, viewer), [events, viewer]);
 
   const isSpectator = viewer?.kind === 'spectator';
-  // 观众，以及对局正常结束后的玩家：能看到调用统计，可以开上帝视角看所有身份、任务牌和思考摘要（服务端也按同一规则推送）
-  const fullView = !!viewer && !!summary && seesEverything(viewer, summary.status);
+  // 观众、对局正常结束后的玩家、调试模式下的所有人：能看到调用统计，可以开上帝视角看所有身份、任务牌和思考摘要（服务端也按同一规则推送）
+  const fullView = !!viewer && !!summary && seesEverything(viewer, summary.status, debug);
   const players = summary?.players ?? [];
   const mySeat = viewer?.kind === 'player' ? viewer.seat : null;
   const roles = visibleRoles(board, viewer, godView);
@@ -152,6 +156,33 @@ export function GameView({ gameId, token, onBack, onCreated }: Props) {
     </button>
   );
 
+  // 调试模式：全 AI 对局的观众和参与对局的玩家可以开关。开了以后本局所有人都能看到全部身份和 AI 的思考，
+  // 可以暂停 AI 调用，也可以以裁判身份向 AI 提问
+  const canDebug = isSpectator || !!token;
+  const liveBusy = state.summary?.status === 'running' || state.summary?.postgame === 'running';
+  const [askOpen, setAskOpen] = useState(false);
+  // 还在回答调试提问的 AI（用最新的事件，不等朗读）
+  const debugPending = useMemo(() => {
+    const answered = new Set(state.events.flatMap((e) => (e.type === 'debug_answer' ? [e.id] : [])));
+    return new Set(state.events.flatMap((e) => (e.type === 'debug_ask' && !answered.has(e.id) ? [e.seat] : [])));
+  }, [state.events]);
+  const toggleDebug = async (on: boolean) => {
+    if (on && summary?.hasHumans && !confirm('开启调试模式后，本局所有玩家都能看到全部身份和 AI 的思考，确定开启吗？')) return;
+    try {
+      await api.setDebug(gameId, on, token ?? undefined);
+      if (!on) setAskOpen(false);
+    } catch (e) {
+      alert(e instanceof Error ? e.message : String(e));
+    }
+  };
+  const togglePaused = async (on: boolean) => {
+    try {
+      await api.setPaused(gameId, on, token ?? undefined);
+    } catch (e) {
+      alert(e instanceof Error ? e.message : String(e));
+    }
+  };
+
   const stop = async () => {
     if (!confirm(postgameRunning ? '确定要结束赛后交流吗？' : '确定要结束这局游戏吗？')) return;
     try {
@@ -206,6 +237,19 @@ export function GameView({ gameId, token, onBack, onCreated }: Props) {
             上帝视角
           </label>
         )}
+        {canDebug && (
+          <label className={`toggle${debug ? ' debug-on' : ''}`} title="所有人的身份和 AI 的思考都公开，可以暂停、以裁判身份向 AI 提问">
+            <input type="checkbox" checked={debug} onChange={(e) => toggleDebug(e.target.checked)} />
+            调试
+          </label>
+        )}
+        {debug && canDebug && liveBusy && (
+          <label className={`toggle${paused ? ' paused' : ''}`} title="已经开始的 AI 调用会完成，之后不再发起新的调用，直到继续">
+            <input type="checkbox" checked={paused} onChange={(e) => togglePaused(e.target.checked)} />
+            暂停
+          </label>
+        )}
+        {debug && canDebug && !askOpen && <button onClick={() => setAskOpen(true)}>裁判提问</button>}
         {summary?.status === 'running' && (
           <button className="ghost danger" onClick={stop}>
             结束对局
@@ -222,6 +266,9 @@ export function GameView({ gameId, token, onBack, onCreated }: Props) {
       </header>
 
       {state.error && <div className="notice">{state.error}</div>}
+      {debug && paused && liveBusy && (
+        <div className="notice paused-notice">已暂停：已经开始的 AI 调用会完成，之后不再发起新的调用。取消勾选"暂停"后继续。</div>
+      )}
 
       {summary ? (
         <div className="game-body">
@@ -299,6 +346,9 @@ export function GameView({ gameId, token, onBack, onCreated }: Props) {
             {/* 发言框固定在时间线下方，不挡圆桌 */}
             {act?.allowsSpeech && <Composer key={act.request.id} act={act} />}
             {chatting && <ChatComposer chat={chat} players={players} onClose={() => setChatOpen(false)} />}
+            {debug && canDebug && askOpen && (
+              <DebugAsk gameId={gameId} token={token} players={players} pendingSeats={debugPending} onClose={() => setAskOpen(false)} />
+            )}
           </main>
         </div>
       ) : (

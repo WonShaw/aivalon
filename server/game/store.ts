@@ -20,6 +20,8 @@ export interface GameRecord {
   cursors?: Record<number, number>; // 座位 -> 该 AI 已经看过的最后一个事件序号（早期记录没有）
   postgame?: PostgameStatus;
   ai?: AIConfig; // 开局时选定的模型和推理强度，之后不再改动（早期的记录没有，按默认配置）
+  debug?: boolean; // 调试模式（见 GameSummary.debug）
+  debugSessions?: string[]; // 调试提问 fork 出来的会话，删除对局时一起删掉
 }
 
 export class GameStore {

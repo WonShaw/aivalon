@@ -177,6 +177,39 @@ export class AIPlayer {
   }
 }
 
+export interface DebugAnswer {
+  answer: string;
+  thinking: string;
+  sessionId: string; // 这次回答所在的调试会话
+}
+
+// 调试提问：fork 为 true 时从 AI 的游戏会话 fork 出一个新会话（带着游戏里的全部记忆，原会话不受影响），
+// 否则接着之前的调试会话问。和游戏会话用同样的配置（包括结构化输出），历史里的工具调用才对得上，缓存也能命中
+export async function askDebug(config: AIConfig, prompt: string, resume: string, fork: boolean): Promise<DebugAnswer> {
+  const q = query({ prompt, options: { ...baseOptions(config), resume, forkSession: fork, includePartialMessages: false } });
+  let sessionId = resume;
+  const thinking: string[] = [];
+  let result: SDKResultMessage | undefined;
+  for await (const m of q) {
+    if (m.type === 'system' && m.subtype === 'init') sessionId = m.session_id;
+    else if (m.type === 'assistant') {
+      for (const block of m.message.content) {
+        if (block.type === 'thinking' && block.thinking.trim()) thinking.push(block.thinking.trim());
+      }
+    } else if (m.type === 'result') result = m;
+  }
+  if (!result) throw new Error('没有收到结果消息');
+  if (result.subtype !== 'success' || result.is_error) {
+    const detail = result.subtype === 'success' ? result.result : result.errors.join('; ');
+    throw new Error(`调用失败（${result.subtype}）：${detail}`);
+  }
+  // 回答写在 speech 里；没按要求提交时退而用纯文本结果
+  const output = result.structured_output as AIOutput | undefined;
+  const answer = output?.speech?.trim() || result.result?.trim();
+  if (!answer) throw new Error('没有返回回答');
+  return { answer, thinking: thinking.join('\n\n'), sessionId };
+}
+
 // 从一段还没生成完的 JSON 里取出某个字符串字段目前已有的内容，用于流式展示发言
 export function extractPartialString(json: string, key: string): string | null {
   const m = new RegExp(`"${key}"\\s*:\\s*"`).exec(json);

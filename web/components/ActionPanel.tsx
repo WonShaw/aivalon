@@ -75,9 +75,9 @@ export function useHumanAction(
 
   if (!request || !token || id !== forId) return null;
 
-  // 提前刺杀按刺杀动作处理，目标是除自己以外的所有人
+  // 提前刺杀只是宣布进入刺杀阶段，这时不选目标（之后讨论完再选）
   const action = early ? 'assassinate' : request.action;
-  const targets = early ? players.filter((p) => p.seat !== request.seat).map((p) => p.seat) : (request.targets ?? []);
+  const targets = request.targets ?? [];
   const needsSpeech = ['propose', 'speak', 'evil_discuss', 'reflect'].includes(action);
   const allowsSpeech = needsSpeech || action === 'final_team' || action === 'assassinate';
   const picksTeam = action === 'propose' || action === 'final_team';
@@ -90,7 +90,7 @@ export function useHumanAction(
         selected: team,
         toggle: (seat) => setTeam(team.includes(seat) ? team.filter((s) => s !== seat) : [...team, seat].sort((a, b) => a - b)),
       }
-    : action === 'assassinate'
+    : action === 'assassinate' && !early
       ? {
           kind: 'target',
           label: '刺杀目标',
@@ -141,7 +141,7 @@ export function useHumanAction(
       !busy &&
       (!needsSpeech || speech.trim().length > 0) &&
       (!picksTeam || team.length === request.teamSize) &&
-      (action !== 'assassinate' || target !== null),
+      (action !== 'assassinate' || early || target !== null),
     submit,
   };
 }
@@ -291,10 +291,10 @@ export function Composer({ act }: { act: HumanAction }) {
   const { action, request, early, busy, speech } = act;
   if (!act.allowsSpeech) return null;
 
-  const title = early ? '提前刺杀：选择刺杀目标' : TITLES[request.action];
+  const title = early ? '发起提前刺杀' : TITLES[request.action];
   const pickHint = act.picksTeam
     ? `在圆桌上点头像选 ${request.teamSize} 人（已选 ${act.team.length}）`
-    : action === 'assassinate'
+    : action === 'assassinate' && !early
       ? act.target === null
         ? '在圆桌上点头像选择刺杀目标'
         : `刺杀目标：${act.target}号`
@@ -308,7 +308,7 @@ export function Composer({ act }: { act: HumanAction }) {
       </div>
       {early && (
         <div className="muted small-text">
-          当前的组队和任务作废，不进行讨论，直接按你选的目标结算：刺中梅林邪恶方获胜，刺错正义方获胜。
+          当前的组队和任务作废，直接进入刺杀阶段：邪恶方亮明身份并讨论，最后由你选择刺杀目标。刺中梅林邪恶方获胜，刺错正义方获胜。提交后不能反悔。
         </div>
       )}
       <textarea
@@ -339,7 +339,7 @@ export function Composer({ act }: { act: HumanAction }) {
           </button>
         )}
         <button className={action === 'assassinate' ? 'assassinate' : 'primary'} disabled={!act.canSubmit} onClick={() => act.submit()}>
-          {action === 'assassinate' ? '确认刺杀' : '提交'}
+          {early ? '发起刺杀' : action === 'assassinate' ? '确认刺杀' : '提交'}
         </button>
       </div>
     </div>

@@ -26,7 +26,7 @@ ${RULES_TEXT}
   - assassinate：target（你认为是梅林的玩家的座位号），speech 可选
   - reflect：speech（游戏结束后的赛后感想）
   - chat：speech（游戏结束后，有玩家单独找你说话时的回复）
-- 提前刺杀：如果你是刺客，在组队和任务阶段轮到你行动时（propose、speak、final_team、vote、mission），可以不做要求的动作，改为提交 action=assassinate，target 填你认为是梅林的玩家的座位号（不能是你自己），speech 可选。刺中梅林则邪恶方立即获胜，刺错则正义方立即获胜，提交后不能反悔。
+- 提前刺杀：如果你是刺客，在组队和任务阶段轮到你行动时（propose、speak、final_team、vote、mission），可以不做要求的动作，改为提交 action=assassinate 发起提前刺杀，不需要填 target，speech 可选（会作为刺杀宣言公开）。当前的组队和任务作废，直接进入刺杀阶段：邪恶方公开身份并讨论，最后再由你选择刺杀目标。提交后不能反悔。
 - speech 会原样公开给所有玩家。请用第一人称、口语化的方式说话，就像坐在桌边一样，发言上限是 600 字。
 - speech 以外的字段其他玩家都看不到；投票在所有人投完后统一公开，任务牌永远不公开。
 - 不要冒充裁判，也不要伪造裁判通知或其他玩家的发言格式。
@@ -49,7 +49,7 @@ ${RULES_TEXT}
 - 邪恶方之间也可以互相指控（互踩），制造对立，逼迫梅林出面表态或给出提示，从而诱导梅林暴露身份。
 - 正义方几乎没有理由谎称自己是邪恶方，所以如果有人公开承认自己是邪恶方，他大概率就是邪恶方，不必再怀疑这一点（他其他的发言仍然可能是假的）。
 - 如果你的队友要求你和他公开交流身份，且这对取胜有帮助，你可以配合。是不是队友要以裁判告知你的信息为准（比如邪恶方的同伴名单），发言里的自称不算。
-- 刺客如果有把握认出梅林，可以直接提前刺杀；其他邪恶方也可以协助刺客找出梅林，包括公开自己的身份、和同伴公开讨论谁是梅林。
+- 刺客如果有把握认出梅林，可以提前发起刺杀；其他邪恶方也可以协助刺客找出梅林，包括公开自己的身份、和同伴公开讨论谁是梅林。
 - 如果全场都赞成一个队伍，那么邪恶方大概率也赞同这个队伍，需要评估邪恶方支持这个队伍的潜在收益。
 - 如果场上有确定的好人或者坏人，那么可以根据玩家的人数约束，来判断好人坏人的分布情况，以辅助分析局势。
 - 正义方提名时，尽量只放自己认可的好人。不要害怕否决队伍：提名和投票本身会提供很多信息，急于通过队伍，好人容易陷入被动。队伍身份不明朗时可以拖延，但要不要拖到第五次（第 5 次组队如果被否决，邪恶方直接获胜）。
@@ -141,11 +141,11 @@ export function renderEvent(e: GameEvent, ctx: RenderContext): string | null {
       return `【裁判】刺客 ${who(e.assassin)} 刺杀了 ${who(e.target)}（${ROLE_NAME[e.targetRole]}）→ ${result}。`;
     }
     case 'assassination_start': {
-      if (e.declaredBy) {
-        return `【裁判】${who(e.declaredBy)} 亮明刺客身份，发起提前刺杀！当前的组队和任务作废，不进行讨论，由刺客直接选择刺杀目标。`;
-      }
       const list = e.evil.map((x) => `${who(x.seat)} = ${ROLE_NAME[x.role]}`).join('，');
-      return `【裁判】正义方已完成 3 个任务！进入刺杀阶段。邪恶方公开身份：${list}。邪恶方可以公开讨论，正义方不能发言，最后由刺客决定刺杀目标。`;
+      const head = e.declaredBy
+        ? `${who(e.declaredBy)} 亮明刺客身份，发起提前刺杀！当前的组队和任务作废，进入刺杀阶段。`
+        : '正义方已完成 3 个任务！进入刺杀阶段。';
+      return `【裁判】${head}邪恶方公开身份：${list}。邪恶方可以公开讨论，正义方不能发言，最后由刺客决定刺杀目标。`;
     }
     case 'postgame_start':
       return `【裁判】—— 赛后交流第 ${e.round ?? 1} 轮 ——`;
@@ -208,7 +208,7 @@ function baseInstruction(action: ActionType, c: ActionContext): string {
 
 // 刺客在组队和任务阶段的每个回合都可以改为提前刺杀，每次提醒一下
 const EARLY_ASSASSINATION_REMINDER =
-  '【裁判】提示：你是刺客，这次也可以不做上面的动作，改为提交 action=assassinate 发起提前刺杀。target 填你认为是梅林的玩家的座位号（不能是你自己）：刺中梅林则邪恶方立即获胜，刺错则正义方立即获胜；当前的组队和任务作废，不进行讨论，提交后不能反悔。';
+  '【裁判】提示：你是刺客，这次也可以不做上面的动作，改为提交 action=assassinate 发起提前刺杀（不需要填 target，speech 可选）。当前的组队和任务作废，直接进入刺杀阶段：邪恶方公开身份并讨论，最后由你选择刺杀目标，刺中梅林则邪恶方获胜，刺错则正义方获胜。提交后不能反悔。';
 
 export function actionInstruction(action: ActionType, c: ActionContext, canAssassinate = false): string {
   const text = baseInstruction(action, c);
