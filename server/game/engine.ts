@@ -684,39 +684,54 @@ export class Game {
     const assassin = evil.find((e) => e.role === 'assassin')!.seat;
     this.emit({ type: 'assassination_start', evil, declaredBy }, PUBLIC);
 
-    // 刺客先发言，然后其他邪恶方玩家发言，最后刺客做决定
+    const goodSeats = this.seatsFrom(1).filter((s) => !isEvil(roles[s]));
+    const targetError = (o: ActionSubmission) =>
+      o.target === undefined
+        ? '缺少 target'
+        : goodSeats.includes(o.target)
+          ? null
+          : `target 必须是正义方玩家的座位号（${goodSeats.join('、')}）`;
+    const settle = (target: number): Team => {
+      const prefix = declaredBy ? '提前刺杀：' : '';
+      const hit = roles[target] === 'merlin';
+      this.emit({ type: 'assassination', assassin, target, targetRole: roles[target], hit }, PUBLIC);
+      return hit
+        ? this.finish('evil', `${prefix}刺客刺中了梅林（${target}号）`)
+        : this.finish('good', `${prefix}刺客刺杀 ${target}号 失败，梅林幸存`);
+    };
+
+    // 刺客先发言，然后其他邪恶方玩家发言，最后刺客做决定。
+    // 人类刺客发言时可以同时选目标，直接刺杀（发言可以不写），跳过后面的讨论
     const order = [assassin, ...evil.map((e) => e.seat).filter((s) => s !== assassin)];
     for (const seat of order) {
-      const out = await this.ask(seat, 'evil_discuss', {}, Game.needSpeech, () => ({
-        action: 'evil_discuss',
-        speech: '（沉默）',
-      }));
+      const direct = seat === assassin && this.isHuman(seat);
+      const out = await this.ask(
+        seat,
+        'evil_discuss',
+        {},
+        direct ? (o) => (o.target === undefined ? Game.needSpeech(o) : targetError(o)) : Game.needSpeech,
+        () => ({ action: 'evil_discuss', speech: '（沉默）' }),
+        direct ? { targets: goodSeats } : {},
+      );
+      if (direct && out.target !== undefined) {
+        if (out.speech?.trim()) this.emit({ type: 'speech', seat, kind: 'assassinate', text: out.speech }, PUBLIC);
+        return settle(out.target);
+      }
       this.emit({ type: 'speech', seat, kind: 'assassin_discuss', text: out.speech! }, PUBLIC);
     }
 
-    const goodSeats = this.seatsFrom(1).filter((s) => !isEvil(roles[s]));
     const decision = await this.ask(
       assassin,
       'assassinate',
       {},
-      (o) => {
-        if (o.target === undefined) return '缺少 target';
-        if (!goodSeats.includes(o.target)) return `target 必须是正义方玩家的座位号（${goodSeats.join('、')}）`;
-        return null;
-      },
+      targetError,
       () => ({ action: 'assassinate', target: goodSeats[Math.floor(Math.random() * goodSeats.length)] }),
       { targets: goodSeats },
     );
     // 刺杀宣言可选
     if (decision.speech?.trim()) this.emit({ type: 'speech', seat: assassin, kind: 'assassinate', text: decision.speech }, PUBLIC);
 
-    const target = decision.target!;
-    const prefix = declaredBy ? '提前刺杀：' : '';
-    const hit = this.record.roles[target] === 'merlin';
-    this.emit({ type: 'assassination', assassin, target, targetRole: this.record.roles[target], hit }, PUBLIC);
-    return hit
-      ? this.finish('evil', `${prefix}刺客刺中了梅林（${target}号）`)
-      : this.finish('good', `${prefix}刺客刺杀 ${target}号 失败，梅林幸存`);
+    return settle(decision.target!);
   }
 
   private finish(winner: Team, reason: string): Team {

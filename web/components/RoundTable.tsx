@@ -179,7 +179,11 @@ export function RoundTable({ setup, players, board, acting, speaking, viewer, ro
                   );
                 })}
               </div>
-              {pick && pick.selected.length < pick.size && <div className="slots-hint">点击头像{{ team: '选人', target: '选择目标', chat: '选择对话对象' }[pick.kind]}</div>}
+              {pick && pick.selected.length < pick.size && (
+                <div className="slots-hint">
+                  {pick.optional ? '可点击头像直接刺杀' : `点击头像${{ team: '选人', target: '选择目标', chat: '选择对话对象' }[pick.kind]}`}
+                </div>
+              )}
             </div>
           )}
           {actions}

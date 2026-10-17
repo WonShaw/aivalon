@@ -27,6 +27,7 @@ export interface SeatPick {
   seats: number[]; // 可以选的座位
   selected: number[];
   toggle: (seat: number) => void;
+  optional?: boolean; // 可以不选：刺客在刺杀讨论中发言时，选了目标就是直接刺杀
 }
 
 export interface HumanAction {
@@ -78,8 +79,11 @@ export function useHumanAction(
   // 提前刺杀只是确认进入刺杀阶段：不发言也不选目标（之后讨论完再选），在圆桌中央确认
   const action = early ? 'assassinate' : request.action;
   const targets = request.targets ?? [];
-  const needsSpeech = !early && ['propose', 'speak', 'evil_discuss', 'reflect'].includes(action);
-  const allowsSpeech = !early && (needsSpeech || action === 'final_team' || action === 'assassinate');
+  // 刺客在刺杀讨论中发言时可以同时选目标直接刺杀，这时发言可以不写
+  const direct = action === 'evil_discuss' && targets.length > 0;
+  const needsSpeech =
+    !early && ['propose', 'speak', 'evil_discuss', 'reflect'].includes(action) && !(direct && target !== null);
+  const allowsSpeech = !early && (needsSpeech || direct || action === 'final_team' || action === 'assassinate');
   const picksTeam = action === 'propose' || action === 'final_team';
   const pick: SeatPick | null = picksTeam
     ? {
@@ -90,7 +94,7 @@ export function useHumanAction(
         selected: team,
         toggle: (seat) => setTeam(team.includes(seat) ? team.filter((s) => s !== seat) : [...team, seat].sort((a, b) => a - b)),
       }
-    : action === 'assassinate' && !early
+    : (action === 'assassinate' && !early) || direct
       ? {
           kind: 'target',
           label: '刺杀目标',
@@ -98,6 +102,7 @@ export function useHumanAction(
           seats: targets,
           selected: target === null ? [] : [target],
           toggle: (seat) => setTarget(target === seat ? null : seat),
+          optional: direct,
         }
       : null;
 
@@ -106,7 +111,7 @@ export function useHumanAction(
     // "跳过"会显式传入空发言，不能被输入框里的内容覆盖
     if (allowsSpeech && extra.speech === undefined && speech.trim()) submission.speech = speech.trim();
     if (picksTeam) submission.team = team;
-    if (action === 'assassinate' && !early && target !== null) submission.target = target;
+    if (((action === 'assassinate' && !early) || direct) && target !== null) submission.target = target;
     setBusy(true);
     setError(null);
     try {
@@ -306,26 +311,36 @@ export function Composer({ act }: { act: HumanAction }) {
   if (!act.allowsSpeech) return null;
 
   const title = TITLES[request.action];
+  const direct = !!act.pick?.optional;
   const pickHint = act.picksTeam
     ? `在圆桌上点头像选 ${request.teamSize} 人（已选 ${act.team.length}）`
-    : action === 'assassinate'
+    : direct
       ? act.target === null
-        ? '在圆桌上点头像选择刺杀目标'
-        : `刺杀目标：${act.target}号`
-      : null;
+        ? '可以同时在圆桌上点头像，直接刺杀'
+        : `刺杀目标：${act.target}号（提交后直接结算，跳过其他人的讨论）`
+      : action === 'assassinate'
+        ? act.target === null
+          ? '在圆桌上点头像选择刺杀目标'
+          : `刺杀目标：${act.target}号`
+        : null;
+  const killing = action === 'assassinate' || (direct && act.target !== null);
 
   return (
-    <div className={`composer${action === 'assassinate' ? ' danger' : ''}`}>
+    <div className={`composer${killing ? ' danger' : ''}`}>
       <div className="composer-head">
         <span className="composer-title">{title}</span>
-        {pickHint && <span className={`composer-hint${act.pick && act.pick.selected.length < act.pick.size ? ' todo' : ''}`}>{pickHint}</span>}
+        {pickHint && (
+          <span className={`composer-hint${act.pick && !act.pick.optional && act.pick.selected.length < act.pick.size ? ' todo' : ''}`}>
+            {pickHint}
+          </span>
+        )}
       </div>
       <textarea
         autoFocus
         value={speech}
         onChange={(e) => act.setSpeech(e.target.value)}
         placeholder={
-          act.needsSpeech ? '输入你的发言…' : action === 'assassinate' ? '（可选）说一句刺杀宣言' : '（可选）补充一句说明'
+          act.needsSpeech ? '输入你的发言…' : killing ? '（可选）说一句刺杀宣言' : '（可选）补充一句说明'
         }
         rows={3}
         maxLength={800}
@@ -342,8 +357,8 @@ export function Composer({ act }: { act: HumanAction }) {
             跳过
           </button>
         )}
-        <button className={action === 'assassinate' ? 'assassinate' : 'primary'} disabled={!act.canSubmit} onClick={() => act.submit()}>
-          {action === 'assassinate' ? '确认刺杀' : '提交'}
+        <button className={killing ? 'assassinate' : 'primary'} disabled={!act.canSubmit} onClick={() => act.submit()}>
+          {killing ? '确认刺杀' : '提交'}
         </button>
       </div>
     </div>

@@ -161,7 +161,7 @@ export interface HumanRequest {
   teamSize?: number;
   team?: number[];
   canFail?: boolean; // 任务牌：只有邪恶方可以出失败
-  targets?: number[]; // 刺杀：可选目标
+  targets?: number[]; // 刺杀：可选目标。刺客在刺杀讨论中发言时也有，表示可以同时选目标直接刺杀
   canAssassinate?: boolean; // 刺客可以不做这个动作，改为发起提前刺杀
 }
 
